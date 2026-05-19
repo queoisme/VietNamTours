@@ -1,0 +1,16 @@
+# .NET
+GuideMarket.Api/bin/
+GuideMarket.Api/obj/
+
+# Secrets
+GuideMarket.Api/appsettings.json
+GuideMarket.Api/appsettings.*.json
+!GuideMarket.Api/appsettings.Development.json
+
+# VS
+.vs/
+*.user
+
+# Claude & MCP
+.claude/
+.mcp.json
