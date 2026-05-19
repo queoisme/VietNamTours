@@ -18,6 +18,14 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Railway (and many PaaS) provide the HTTP port via PORT env var.
+// Configure Kestrel to listen on that port when present.
+var portEnv = Environment.GetEnvironmentVariable("PORT");
+if (int.TryParse(portEnv, out var port) && port > 0)
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
+
 // Serilog
 builder.Host.UseSerilog((ctx, cfg) => cfg.ReadFrom.Configuration(ctx.Configuration));
 
@@ -184,6 +192,9 @@ app.UseHangfireDashboard("/hangfire");
 var recurringJobs = app.Services.GetRequiredService<IRecurringJobManager>();
 recurringJobs.AddOrUpdate<ExpireBoostJob>("expire-boosts", x => x.ExecuteAsync(), Cron.Hourly);
 recurringJobs.AddOrUpdate<ExpireSubscriptionJob>("expire-subscriptions", x => x.ExecuteAsync(), Cron.Daily);
+
+app.MapGet("/", () => Results.Ok(new { name = "GuideMarket API", status = "ok" }));
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 app.MapControllers();
 
