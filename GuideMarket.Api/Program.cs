@@ -176,7 +176,12 @@ var app = builder.Build();
 app.UseMiddleware<ErrorHandlingMiddleware>();
 app.UseSerilogRequestLogging();
 
-if (app.Environment.IsDevelopment())
+var swaggerEnabled =
+    app.Environment.IsDevelopment()
+    || builder.Configuration.GetValue<bool>("Swagger:Enabled")
+    || string.Equals(Environment.GetEnvironmentVariable("ENABLE_SWAGGER"), "true", StringComparison.OrdinalIgnoreCase);
+
+if (swaggerEnabled)
 {
     app.UseSwagger();
     app.UseSwaggerUI();
