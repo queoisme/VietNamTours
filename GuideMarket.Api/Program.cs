@@ -85,7 +85,12 @@ builder.Services.AddScoped<IGuideApplicationService, GuideApplicationService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
-builder.Services.AddScoped<IEmailService, ResendEmailService>();
+// Email provider (default SendGrid when configured; fallback to Resend)
+var sendGridKey = builder.Configuration["SendGrid:ApiKey"];
+builder.Services.AddScoped<IEmailService>(_ =>
+    string.IsNullOrWhiteSpace(sendGridKey)
+        ? new ResendEmailService(_.GetRequiredService<IHttpClientFactory>(), builder.Configuration)
+        : new SendGridEmailService(builder.Configuration));
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<IWishlistService, WishlistService>();
 builder.Services.AddScoped<IConversationService, ConversationService>();

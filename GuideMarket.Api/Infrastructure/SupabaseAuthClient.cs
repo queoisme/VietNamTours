@@ -66,7 +66,7 @@ public class SupabaseAuthClient
         var content = await res.Content.ReadAsStringAsync();
 
         if (!res.IsSuccessStatusCode)
-            throw new InvalidOperationException(ExtractError(content));
+            throw new InvalidOperationException($"Supabase signup failed ({(int)res.StatusCode}): {ExtractError(content)}");
     }
 
     // ----------------------------------------------------------------
@@ -113,7 +113,7 @@ public class SupabaseAuthClient
         var content = await res.Content.ReadAsStringAsync();
 
         if (!res.IsSuccessStatusCode)
-            throw new InvalidOperationException(ExtractError(content));
+            throw new InvalidOperationException($"Supabase resend failed ({(int)res.StatusCode}): {ExtractError(content)}");
     }
 
     // ----------------------------------------------------------------
