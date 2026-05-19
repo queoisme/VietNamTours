@@ -81,6 +81,14 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>Supabase email confirmation callback (Implicit flow). Trả HTML thành công.</summary>
+    /// <summary>Gửi lại email/OTP xác nhận đăng ký.</summary>
+    [HttpPost("resend-verify-email")]
+    public async Task<IActionResult> ResendVerifyEmail([FromBody] ResendVerifyEmailRequest request)
+    {
+        await _authService.ResendVerifyEmailAsync(request.Email);
+        return Ok(ApiResponse<object>.Ok(null!, "Verification email/OTP resent"));
+    }
+
     [HttpGet("/auth/callback")]
     public IActionResult Callback() => Content("""
         <!DOCTYPE html>

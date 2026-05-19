@@ -13,6 +13,7 @@ public interface IAuthService
     Task ResetPasswordAsync(string accessToken, string newPassword);
 
     Task<LoginResponse> VerifyEmailAsync(string email, string otp);
+    Task ResendVerifyEmailAsync(string email);
 
     Task RequestOtpAsync(string phone);
     Task VerifyPhoneAsync(Guid userId, string phone, string token);

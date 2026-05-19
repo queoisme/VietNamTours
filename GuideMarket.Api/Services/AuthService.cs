@@ -239,6 +239,20 @@ public class AuthService : IAuthService
         };
     }
 
+    public async Task ResendVerifyEmailAsync(string email)
+    {
+        try
+        {
+            await _supabase.ResendSignupEmailAsync(email);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new InvalidOperationException(ex.Message);
+        }
+
+        _logger.LogInformation("Resent signup verification email/OTP to {Email}", email);
+    }
+
     // ----------------------------------------------------------------
     // Phone OTP
     // ----------------------------------------------------------------

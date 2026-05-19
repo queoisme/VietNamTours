@@ -103,6 +103,20 @@ public class SupabaseAuthClient
     }
 
     // ----------------------------------------------------------------
+    // Resend signup email / OTP
+    // ----------------------------------------------------------------
+    public async Task ResendSignupEmailAsync(string email)
+    {
+        var body = new { type = "signup", email };
+        var req = BuildRequest(HttpMethod.Post, "/resend", body);
+        var res = await _http.SendAsync(req);
+        var content = await res.Content.ReadAsStringAsync();
+
+        if (!res.IsSuccessStatusCode)
+            throw new InvalidOperationException(ExtractError(content));
+    }
+
+    // ----------------------------------------------------------------
     // Refresh token
     // ----------------------------------------------------------------
     public async Task<SupabaseTokenResponse> RefreshTokenAsync(string refreshToken)

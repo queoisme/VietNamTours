@@ -48,6 +48,11 @@ public class VerifyEmailRequest
     public string Otp { get; set; } = default!;
 }
 
+public class ResendVerifyEmailRequest
+{
+    public string Email { get; set; } = default!;
+}
+
 // --- Validators ---
 
 public class RegisterRequestValidator : AbstractValidator<RegisterRequest>
@@ -110,5 +115,13 @@ public class VerifyEmailRequestValidator : AbstractValidator<VerifyEmailRequest>
     {
         RuleFor(x => x.Email).NotEmpty().EmailAddress();
         RuleFor(x => x.Otp).NotEmpty().Matches(@"^\d{6,8}$").WithMessage("OTP must be 6-8 digits");
+    }
+}
+
+public class ResendVerifyEmailRequestValidator : AbstractValidator<ResendVerifyEmailRequest>
+{
+    public ResendVerifyEmailRequestValidator()
+    {
+        RuleFor(x => x.Email).NotEmpty().EmailAddress();
     }
 }
