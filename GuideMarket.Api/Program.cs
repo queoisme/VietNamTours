@@ -85,12 +85,22 @@ builder.Services.AddScoped<IGuideApplicationService, GuideApplicationService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
-// Email provider (default SendGrid when configured; fallback to Resend)
+// Email provider selection:
+// - If Smtp:Host is set, use SMTP (e.g. Gmail SMTP).
+// - Else if SendGrid:ApiKey is set, use SendGrid.
+// - Else fallback to Resend.
+var smtpHost = builder.Configuration["Smtp:Host"];
 var sendGridKey = builder.Configuration["SendGrid:ApiKey"];
-builder.Services.AddScoped<IEmailService>(_ =>
-    string.IsNullOrWhiteSpace(sendGridKey)
-        ? new ResendEmailService(_.GetRequiredService<IHttpClientFactory>(), builder.Configuration)
-        : new SendGridEmailService(builder.Configuration));
+builder.Services.AddScoped<IEmailService>(sp =>
+{
+    if (!string.IsNullOrWhiteSpace(smtpHost))
+        return new SmtpEmailService(builder.Configuration);
+
+    if (!string.IsNullOrWhiteSpace(sendGridKey))
+        return new SendGridEmailService(builder.Configuration);
+
+    return new ResendEmailService(sp.GetRequiredService<IHttpClientFactory>(), builder.Configuration);
+});
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<IWishlistService, WishlistService>();
 builder.Services.AddScoped<IConversationService, ConversationService>();
