@@ -44,13 +44,12 @@ public class UploadsController : ControllerBase
         return Ok(ApiResponse<UploadResponse>.Ok(new UploadResponse(storagePath), "Identity document uploaded"));
     }
 
-    /// <summary>Upload chứng chỉ hướng dẫn (nhiều file, private). Trả về mảng storage path.</summary>
+    /// <summary>Upload chứng chỉ hướng dẫn (nhiều file, private). Gửi files với key "files". Trả về mảng storage path.</summary>
     [HttpPost("certificates")]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> UploadCertificates()
+    public async Task<IActionResult> UploadCertificates([FromForm] List<IFormFile> files)
     {
-        var files = Request.Form.Files;
-        if (files.Count == 0)
+        if (files is null || files.Count == 0)
             return BadRequest(ApiResponse<object>.Fail("No files provided"));
         if (files.Count > 5)
             return BadRequest(ApiResponse<object>.Fail("Maximum 5 certificate files allowed"));

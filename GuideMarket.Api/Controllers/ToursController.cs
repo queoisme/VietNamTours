@@ -122,14 +122,13 @@ public class ToursController : ControllerBase
 
     // --- Image management (Guide only) ---
 
-    /// <summary>Upload 1-nhiều ảnh cho tour (max 10 tổng). Trả về danh sách URL hiện tại.</summary>
+    /// <summary>Upload 1-nhiều ảnh cho tour (max 10 tổng). Gửi files với key "files". Trả về danh sách URL hiện tại.</summary>
     [HttpPost("tours/{id:guid}/images")]
     [Authorize]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> UploadImages(Guid id)
+    public async Task<IActionResult> UploadImages(Guid id, [FromForm] List<IFormFile> files)
     {
-        var files = Request.Form.Files;
-        if (files.Count == 0)
+        if (files is null || files.Count == 0)
             return BadRequest(ApiResponse<object>.Fail("No files provided"));
 
         foreach (var f in files)
