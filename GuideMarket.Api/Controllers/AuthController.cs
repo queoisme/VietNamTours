@@ -19,13 +19,12 @@ public class AuthController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>Đăng ký tài khoản mới. Supabase sẽ gửi email xác nhận.</summary>
+    /// <summary>Đăng ký tài khoản mới. Backend gửi OTP xác thực qua email.</summary>
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
         var result = await _authService.RegisterAsync(request);
-        return StatusCode(201, ApiResponse<RegisterResponse>.Ok(result,
-            "Registration successful. Please check your email to confirm your account."));
+        return StatusCode(201, ApiResponse<RegisterResponse>.Ok(result, result.Message));
     }
 
     /// <summary>Đăng nhập. Trả về access_token và refresh_token.</summary>
@@ -64,73 +63,29 @@ public class AuthController : ControllerBase
             "If this email exists, a password reset link has been sent."));
     }
 
-    /// <summary>Đặt lại mật khẩu mới (dùng token từ email reset).</summary>
+    /// <summary>Đặt lại mật khẩu bằng OTP (email + mã 6 số + mật khẩu mới).</summary>
     [HttpPost("reset-password")]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
     {
-        await _authService.ResetPasswordAsync(request.AccessToken, request.NewPassword);
-        return Ok(ApiResponse<object>.Ok(null!, "Password reset successfully"));
+        await _authService.ResetPasswordAsync(request);
+        return Ok(ApiResponse<object>.Ok(null!, "Đặt lại mật khẩu thành công. Vui lòng đăng nhập."));
     }
 
-    /// <summary>Xác nhận email bằng OTP 6 số. Trả về token luôn.</summary>
+    /// <summary>Xác nhận email bằng OTP 6 số.</summary>
     [HttpPost("verify-email")]
     public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequest request)
     {
         var result = await _authService.VerifyEmailAsync(request.Email, request.Otp);
-        return Ok(ApiResponse<LoginResponse>.Ok(result, "Email verified successfully"));
+        return Ok(ApiResponse<VerifyEmailResponse>.Ok(result, result.Message));
     }
 
-    /// <summary>Supabase email confirmation callback (Implicit flow). Trả HTML thành công.</summary>
-    /// <summary>Gửi lại email/OTP xác nhận đăng ký.</summary>
+    /// <summary>Gửi lại OTP xác nhận đăng ký.</summary>
     [HttpPost("resend-verify-email")]
     public async Task<IActionResult> ResendVerifyEmail([FromBody] ResendVerifyEmailRequest request)
     {
         await _authService.ResendVerifyEmailAsync(request.Email);
         return Ok(ApiResponse<object>.Ok(null!, "Verification email/OTP resent"));
     }
-
-    [HttpGet("/auth/callback")]
-    public IActionResult Callback() => Content("""
-        <!DOCTYPE html>
-        <html lang="vi">
-        <head>
-          <meta charset="UTF-8">
-          <title>Email Confirmed</title>
-          <style>
-            body { font-family: sans-serif; display:flex; justify-content:center;
-                   align-items:center; height:100vh; margin:0; background:#f0fdf4; }
-            .card { background:#fff; border-radius:12px; padding:40px; text-align:center;
-                    box-shadow:0 4px 24px rgba(0,0,0,.1); max-width:400px; }
-            h2 { color:#16a34a; margin-bottom:8px; }
-            p  { color:#555; }
-            a  { color:#2563eb; }
-          </style>
-          <script>
-            // Với Implicit flow, tokens nằm trong URL fragment (#access_token=...)
-            window.onload = function() {
-              var hash = window.location.hash;
-              if (hash.includes('access_token')) {
-                document.getElementById('msg').textContent =
-                  'Email xác nhận thành công! Bạn đã có thể đăng nhập.';
-              } else if (hash.includes('error')) {
-                document.getElementById('msg').textContent = 'Lỗi xác nhận: ' + hash;
-                document.getElementById('title').textContent = 'Lỗi';
-                document.getElementById('title').style.color = '#dc2626';
-              }
-            };
-          </script>
-        </head>
-        <body>
-          <div class="card">
-            <h2 id="title">✓ Email đã xác nhận</h2>
-            <p id="msg">Email xác nhận thành công! Bạn đã có thể đăng nhập.</p>
-            <p style="margin-top:24px">
-              <a href="/swagger">Mở Swagger để test login →</a>
-            </p>
-          </div>
-        </body>
-        </html>
-        """, "text/html");
 
     /// <summary>Gửi OTP xác thực số điện thoại.</summary>
     [HttpPost("request-otp")]

@@ -21,6 +21,7 @@ public class AppDbContext : DbContext
     public DbSet<Boost> Boosts => Set<Boost>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
     public DbSet<Withdrawal> Withdrawals => Set<Withdrawal>();
+    public DbSet<OtpVerification> OtpVerifications => Set<OtpVerification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -157,6 +158,14 @@ public class AppDbContext : DbContext
         {
             e.ToTable("withdrawals");
             e.HasOne(w => w.Guide).WithMany().HasForeignKey(w => w.GuideId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<OtpVerification>(e =>
+        {
+            e.ToTable("otp_verifications");
+            e.HasIndex(o => new { o.Target, o.Type })
+             .HasFilter("is_used = false")
+             .HasDatabaseName("idx_otp_target");
         });
     }
 }
