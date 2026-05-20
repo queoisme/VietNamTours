@@ -122,3 +122,8 @@ public class CreateAvailabilityRequestValidator : AbstractValidator<CreateAvaila
         RuleFor(x => x.MaxSlots).GreaterThan((short)0).When(x => !x.IsBlocked);
     }
 }
+
+public class RemoveImageRequest
+{
+    public string Url { get; set; } = default!;
+}

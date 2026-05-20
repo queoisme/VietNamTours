@@ -92,11 +92,11 @@ public class OtpService : IOtpService
     }
 
     private static (string Subject, string Body) BuildRegistrationEmail(string code) => (
-        "Mã xác thực đăng ký tài khoản GuideMarket",
+        "Mã xác thực đăng ký tài khoản VietNamTours",
         $"""
         <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #e0e0e0;border-radius:8px">
           <h2 style="color:#1a73e8">Xác thực tài khoản</h2>
-          <p>Chào mừng bạn đến với <strong>GuideMarket</strong>!</p>
+          <p>Chào mừng bạn đến với <strong>VietNamTours</strong>!</p>
           <p>Mã xác thực đăng ký của bạn là:</p>
           <div style="text-align:center;margin:24px 0">
             <span style="font-size:36px;font-weight:bold;letter-spacing:8px;color:#1a73e8">{code}</span>
@@ -109,7 +109,7 @@ public class OtpService : IOtpService
     );
 
     private static (string Subject, string Body) BuildPasswordResetEmail(string code) => (
-        "Mã đặt lại mật khẩu GuideMarket",
+        "Mã đặt lại mật khẩu VietNamTours",
         $"""
         <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #e0e0e0;border-radius:8px">
           <h2 style="color:#e53935">Đặt lại mật khẩu</h2>
@@ -126,7 +126,7 @@ public class OtpService : IOtpService
     );
 
     private static (string Subject, string Body) BuildGenericEmail(string code) => (
-        "Mã xác thực GuideMarket",
+        "Mã xác thực VietNamTours",
         $"""
         <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px">
           <p>Mã xác thực của bạn là: <strong style="font-size:24px;letter-spacing:4px">{code}</strong></p>

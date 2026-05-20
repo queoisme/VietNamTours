@@ -50,7 +50,7 @@ public class SubscriptionExpiringWarningJob
                 "Gói đăng ký sắp hết hạn",
                 $"Gói {planName} của bạn sẽ hết hạn vào {expiresDisplay}. Hãy gia hạn để tiếp tục ưu đãi commission.",
                 "subscription", sub.Id,
-                "Gói đăng ký sắp hết hạn - GuideMarket",
+                "Gói đăng ký sắp hết hạn - VietNamTours",
                 $"""
                 <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #e0e0e0;border-radius:8px">
                   <h2 style="color:#1565c0">📅 Gói {planName} sắp hết hạn</h2>

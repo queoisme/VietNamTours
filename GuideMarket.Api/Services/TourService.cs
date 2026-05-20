@@ -220,6 +220,39 @@ public class TourService : ITourService
         await _uow.SaveChangesAsync();
     }
 
+    // --- Image management ---
+
+    public async Task<string[]> AddImagesAsync(Guid guideId, Guid tourId, string[] newUrls)
+    {
+        var tour = await GetOwnedTourAsync(guideId, tourId);
+        const int maxImages = 10;
+        if (tour.Images.Length + newUrls.Length > maxImages)
+            throw new InvalidOperationException($"Tour cannot have more than {maxImages} images");
+
+        tour.Images = [.. tour.Images, .. newUrls];
+        _uow.Tours.Update(tour);
+        await _uow.SaveChangesAsync();
+        return tour.Images;
+    }
+
+    public async Task<string[]> RemoveImageAsync(Guid guideId, Guid tourId, string url)
+    {
+        var tour = await GetOwnedTourAsync(guideId, tourId);
+        tour.Images = tour.Images.Where(u => u != url).ToArray();
+        _uow.Tours.Update(tour);
+        await _uow.SaveChangesAsync();
+        return tour.Images;
+    }
+
+    public async Task<string> UpdateCoverImageAsync(Guid guideId, Guid tourId, string url)
+    {
+        var tour = await GetOwnedTourAsync(guideId, tourId);
+        tour.CoverImageUrl = url;
+        _uow.Tours.Update(tour);
+        await _uow.SaveChangesAsync();
+        return url;
+    }
+
     // --- Helpers ---
 
     private async Task RequireGuideAsync(Guid userId)

@@ -117,7 +117,7 @@ public class WithdrawalService : IWithdrawalService
             w.GuideId, "withdrawal_approved", "Yêu cầu rút tiền được chấp thuận",
             $"Yêu cầu rút {w.Amount:N0} VNĐ đã được duyệt. Số tiền thực nhận: {w.NetAmount:N0} VNĐ.",
             "withdrawal", w.Id,
-            "Rút tiền được chấp thuận - GuideMarket",
+            "Rút tiền được chấp thuận - VietNamTours",
             $"""
             <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #e0e0e0;border-radius:8px">
               <h2 style="color:#2e7d32">Yêu cầu rút tiền được duyệt ✓</h2>
@@ -163,7 +163,7 @@ public class WithdrawalService : IWithdrawalService
             w.GuideId, "withdrawal_rejected", "Yêu cầu rút tiền bị từ chối",
             $"Yêu cầu rút {w.Amount:N0} VNĐ đã bị từ chối. Số tiền đã được hoàn lại vào số dư của bạn.",
             "withdrawal", w.Id,
-            "Rút tiền bị từ chối - GuideMarket",
+            "Rút tiền bị từ chối - VietNamTours",
             $"""
             <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #e0e0e0;border-radius:8px">
               <h2 style="color:#c62828">Yêu cầu rút tiền bị từ chối</h2>
