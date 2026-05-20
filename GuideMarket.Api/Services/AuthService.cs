@@ -11,16 +11,19 @@ public class AuthService : IAuthService
 {
     private readonly IUnitOfWork _uow;
     private readonly SupabaseAuthClient _supabase;
+    private readonly IOtpService _otp;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
         IUnitOfWork uow,
         SupabaseAuthClient supabase,
+        IOtpService otp,
         ILogger<AuthService> logger)
     {
-        _uow = uow;
+        _uow      = uow;
         _supabase = supabase;
-        _logger = logger;
+        _otp      = otp;
+        _logger   = logger;
     }
 
     // ----------------------------------------------------------------
@@ -28,16 +31,46 @@ public class AuthService : IAuthService
     // ----------------------------------------------------------------
     public async Task<RegisterResponse> RegisterAsync(RegisterRequest request)
     {
+        var existing = await _uow.Users.GetByEmailAsync(request.Email);
+        if (existing is not null)
+            throw new InvalidOperationException("Email đã được sử dụng");
+
+        // Tạo user trong Supabase với email_confirm=true (bypass Supabase email)
+        SupabaseUserDto supabaseUser;
         try
         {
-            await _supabase.SignUpAsync(request.Email, request.Password, request.FullName);
+            supabaseUser = await _supabase.AdminCreateUserAsync(
+                request.Email, request.Password, request.FullName);
         }
         catch (InvalidOperationException ex)
         {
             throw new InvalidOperationException(ex.Message);
         }
 
-        _logger.LogInformation("User {Email} signed up, awaiting email confirmation", request.Email);
+        // Lưu vào local DB — is_verified = false cho đến khi verify OTP
+        var user = new User
+        {
+            Id         = supabaseUser.Id,
+            Email      = request.Email,
+            FullName   = request.FullName,
+            Role       = UserRole.customer,
+            IsVerified = false,
+            CreatedAt  = DateTimeOffset.UtcNow,
+            UpdatedAt  = DateTimeOffset.UtcNow,
+        };
+        await _uow.Users.AddAsync(user);
+        await _uow.SaveChangesAsync();
+
+        // Gửi OTP — nếu email thất bại, không rollback đăng ký; user dùng resend-verify-email
+        try
+        {
+            await _otp.GenerateAndSendAsync(request.Email, OtpTypes.EmailRegistration);
+            _logger.LogInformation("User {Email} registered, OTP sent", request.Email);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "User {Email} registered but OTP email failed — user can resend", request.Email);
+        }
 
         return new RegisterResponse { Email = request.Email };
     }
@@ -47,6 +80,17 @@ public class AuthService : IAuthService
     // ----------------------------------------------------------------
     public async Task<LoginResponse> LoginAsync(LoginRequest request)
     {
+        // Kiểm tra local DB trước để chặn user chưa verify hoặc bị ban
+        var localUser = await _uow.Users.GetByEmailAsync(request.Email);
+        if (localUser is not null)
+        {
+            if (localUser.IsBanned)
+                throw new UnauthorizedAccessException("Tài khoản của bạn đã bị khóa");
+
+            if (!localUser.IsVerified)
+                throw new UnauthorizedAccessException("Tài khoản chưa được xác thực. Vui lòng kiểm tra email để lấy mã OTP.");
+        }
+
         SupabaseTokenResponse token;
         try
         {
@@ -54,56 +98,28 @@ public class AuthService : IAuthService
         }
         catch (UnauthorizedAccessException)
         {
-            throw new UnauthorizedAccessException("Invalid email or password");
+            throw new UnauthorizedAccessException("Email hoặc mật khẩu không đúng");
         }
 
-        // Lấy thông tin user từ DB; lazy-create nếu webhook chưa kịp chạy
-        var userId = token.User?.Id ?? Guid.Empty;
-        var user = userId != Guid.Empty
-            ? await _uow.Users.GetByIdAsync(userId)
-            : await _uow.Users.GetByEmailAsync(request.Email);
-
-        if (user is null)
-        {
-            // Email đã được Supabase xác nhận (login thành công) → tạo user trong DB
-            var fullName = token.User?.UserMetadata != null &&
-                           token.User.UserMetadata.TryGetValue("full_name", out var fn)
-                ? fn.GetString() ?? string.Empty
-                : string.Empty;
-
-            user = new User
-            {
-                Id = userId != Guid.Empty ? userId : Guid.NewGuid(),
-                Email = request.Email,
-                FullName = fullName,
-                Role = UserRole.customer,
-                IsVerified = true,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow,
-            };
-            await _uow.Users.AddAsync(user);
-            await _uow.SaveChangesAsync();
-        }
-
-        if (user.IsBanned)
-            throw new UnauthorizedAccessException("Your account has been banned");
+        var user = localUser
+            ?? throw new KeyNotFoundException("Không tìm thấy tài khoản. Vui lòng đăng ký.");
 
         return new LoginResponse
         {
-            AccessToken = token.AccessToken,
+            AccessToken  = token.AccessToken,
             RefreshToken = token.RefreshToken,
-            ExpiresIn = token.ExpiresIn,
+            ExpiresIn    = token.ExpiresIn,
             User = new UserResponse
             {
-                Id = user.Id,
-                Email = user.Email,
-                FullName = user.FullName,
-                Phone = user.Phone,
-                AvatarUrl = user.AvatarUrl,
-                Role = user.Role.ToString(),
+                Id         = user.Id,
+                Email      = user.Email,
+                FullName   = user.FullName,
+                Phone      = user.Phone,
+                AvatarUrl  = user.AvatarUrl,
+                Role       = user.Role.ToString(),
                 IsVerified = user.IsVerified,
-                IsBanned = user.IsBanned,
-                CreatedAt = user.CreatedAt,
+                IsBanned   = user.IsBanned,
+                CreatedAt  = user.CreatedAt,
             }
         };
     }
@@ -160,97 +176,90 @@ public class AuthService : IAuthService
     // ----------------------------------------------------------------
     public async Task ForgotPasswordAsync(string email)
     {
-        await _supabase.SendPasswordRecoveryAsync(email);
-        _logger.LogInformation("Password recovery email sent to {Email}", email);
+        // Không reveal email có tồn tại hay không (anti-enumeration)
+        var user = await _uow.Users.GetByEmailAsync(email);
+        if (user is not null)
+            await _otp.GenerateAndSendAsync(email, OtpTypes.PasswordReset);
+
+        _logger.LogInformation("Password reset OTP requested for {Email}", email);
     }
 
     // ----------------------------------------------------------------
     // Reset password
     // ----------------------------------------------------------------
-    public async Task ResetPasswordAsync(string accessToken, string newPassword)
+    public async Task ResetPasswordAsync(ResetPasswordRequest request)
     {
-        await _supabase.UpdatePasswordAsync(accessToken, newPassword);
+        var (result, otpId) = await _otp.ValidateAsync(
+            request.Email, request.Otp, OtpTypes.PasswordReset);
+
+        switch (result)
+        {
+            case OtpValidationResult.Valid:
+                break;
+            case OtpValidationResult.Expired:
+                throw new InvalidOperationException("Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới.");
+            case OtpValidationResult.MaxAttemptsExceeded:
+                throw new InvalidOperationException("Đã vượt quá số lần thử. Vui lòng yêu cầu mã mới.");
+            default:
+                throw new InvalidOperationException("Mã OTP không hợp lệ.");
+        }
+
+        var user = await _uow.Users.GetByEmailAsync(request.Email)
+            ?? throw new KeyNotFoundException("Không tìm thấy tài khoản");
+
+        await _supabase.AdminUpdatePasswordAsync(user.Id, request.NewPassword);
+        await _otp.MarkUsedAsync(otpId);
+
+        _logger.LogInformation("Password reset successful for {Email}", request.Email);
     }
 
     // ----------------------------------------------------------------
     // Verify email OTP
     // ----------------------------------------------------------------
-    public async Task<LoginResponse> VerifyEmailAsync(string email, string otp)
+    public async Task<VerifyEmailResponse> VerifyEmailAsync(string email, string otp)
     {
-        SupabaseTokenResponse token;
-        try
+        var (result, otpId) = await _otp.ValidateAsync(email, otp, OtpTypes.EmailRegistration);
+
+        switch (result)
         {
-            token = await _supabase.VerifyEmailOtpAsync(email, otp);
-        }
-        catch (InvalidOperationException ex)
-        {
-            throw new InvalidOperationException(ex.Message);
+            case OtpValidationResult.Valid:
+                break;
+            case OtpValidationResult.NotFound:
+                throw new InvalidOperationException("Không tìm thấy mã OTP. Vui lòng yêu cầu mã mới.");
+            case OtpValidationResult.Expired:
+                throw new InvalidOperationException("Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới.");
+            case OtpValidationResult.MaxAttemptsExceeded:
+                throw new InvalidOperationException("Đã vượt quá số lần thử. Vui lòng yêu cầu mã mới.");
+            default:
+                throw new InvalidOperationException("Mã OTP không hợp lệ.");
         }
 
-        var userId = token.User?.Id ?? Guid.Empty;
-        var user = userId != Guid.Empty
-            ? await _uow.Users.GetByIdAsync(userId)
-            : await _uow.Users.GetByEmailAsync(email);
+        var user = await _uow.Users.GetByEmailAsync(email)
+            ?? throw new KeyNotFoundException("Không tìm thấy tài khoản");
 
-        if (user is null)
-        {
-            var fullName = token.User?.UserMetadata != null &&
-                           token.User.UserMetadata.TryGetValue("full_name", out var fn)
-                ? fn.GetString() ?? string.Empty
-                : string.Empty;
-
-            user = new User
-            {
-                Id = userId != Guid.Empty ? userId : Guid.NewGuid(),
-                Email = email,
-                FullName = fullName,
-                Role = UserRole.customer,
-                IsVerified = true,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow,
-            };
-            await _uow.Users.AddAsync(user);
-            await _uow.SaveChangesAsync();
-        }
-        else if (!user.IsVerified)
+        if (!user.IsVerified)
         {
             user.IsVerified = true;
+            user.UpdatedAt  = DateTimeOffset.UtcNow;
             _uow.Users.Update(user);
             await _uow.SaveChangesAsync();
         }
 
-        return new LoginResponse
-        {
-            AccessToken  = token.AccessToken,
-            RefreshToken = token.RefreshToken,
-            ExpiresIn    = token.ExpiresIn,
-            User = new UserResponse
-            {
-                Id         = user.Id,
-                Email      = user.Email,
-                FullName   = user.FullName,
-                Phone      = user.Phone,
-                AvatarUrl  = user.AvatarUrl,
-                Role       = user.Role.ToString(),
-                IsVerified = user.IsVerified,
-                IsBanned   = user.IsBanned,
-                CreatedAt  = user.CreatedAt,
-            }
-        };
+        await _otp.MarkUsedAsync(otpId);
+
+        _logger.LogInformation("Email {Email} verified successfully", email);
+
+        return new VerifyEmailResponse { Email = email };
     }
 
     public async Task ResendVerifyEmailAsync(string email)
     {
-        try
-        {
-            await _supabase.ResendSignupEmailAsync(email);
-        }
-        catch (InvalidOperationException ex)
-        {
-            throw new InvalidOperationException(ex.Message);
-        }
+        var user = await _uow.Users.GetByEmailAsync(email);
+        if (user is null || user.IsVerified)
+            return; // Không reveal trạng thái
 
-        _logger.LogInformation("Resent signup verification email/OTP to {Email}", email);
+        await _otp.GenerateAndSendAsync(email, OtpTypes.EmailRegistration);
+        _logger.LogInformation("Resent OTP to {Email}", email);
     }
 
     // ----------------------------------------------------------------

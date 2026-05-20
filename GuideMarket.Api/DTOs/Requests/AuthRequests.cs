@@ -27,7 +27,8 @@ public class ForgotPasswordRequest
 
 public class ResetPasswordRequest
 {
-    public string AccessToken { get; set; } = default!;
+    public string Email { get; set; } = default!;
+    public string Otp { get; set; } = default!;
     public string NewPassword { get; set; } = default!;
 }
 
@@ -87,7 +88,8 @@ public class ResetPasswordRequestValidator : AbstractValidator<ResetPasswordRequ
 {
     public ResetPasswordRequestValidator()
     {
-        RuleFor(x => x.AccessToken).NotEmpty();
+        RuleFor(x => x.Email).NotEmpty().EmailAddress();
+        RuleFor(x => x.Otp).NotEmpty().Matches(@"^\d{6}$").WithMessage("OTP phải là 6 chữ số");
         RuleFor(x => x.NewPassword).NotEmpty().MinimumLength(8).MaximumLength(72);
     }
 }
@@ -114,7 +116,7 @@ public class VerifyEmailRequestValidator : AbstractValidator<VerifyEmailRequest>
     public VerifyEmailRequestValidator()
     {
         RuleFor(x => x.Email).NotEmpty().EmailAddress();
-        RuleFor(x => x.Otp).NotEmpty().Matches(@"^\d{6,8}$").WithMessage("OTP must be 6-8 digits");
+        RuleFor(x => x.Otp).NotEmpty().Matches(@"^\d{6}$").WithMessage("OTP phải là 6 chữ số");
     }
 }
 

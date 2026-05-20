@@ -10,9 +10,9 @@ public interface IAuthService
     Task<LoginResponse> RefreshTokenAsync(string refreshToken);
     Task LogoutAsync(string accessToken);
     Task ForgotPasswordAsync(string email);
-    Task ResetPasswordAsync(string accessToken, string newPassword);
+    Task ResetPasswordAsync(ResetPasswordRequest request);
 
-    Task<LoginResponse> VerifyEmailAsync(string email, string otp);
+    Task<VerifyEmailResponse> VerifyEmailAsync(string email, string otp);
     Task ResendVerifyEmailAsync(string email);
 
     Task RequestOtpAsync(string phone);

@@ -202,6 +202,22 @@ public class SupabaseAuthClient
     }
 
     // ----------------------------------------------------------------
+    // Admin: update password (used by custom password reset flow)
+    // ----------------------------------------------------------------
+    public async Task AdminUpdatePasswordAsync(Guid userId, string newPassword)
+    {
+        var body = new { password = newPassword };
+        var req = BuildRequest(HttpMethod.Put, $"/admin/users/{userId}", body, useServiceRole: true);
+        var res = await _http.SendAsync(req);
+
+        if (!res.IsSuccessStatusCode)
+        {
+            var content = await res.Content.ReadAsStringAsync();
+            throw new InvalidOperationException(ExtractError(content));
+        }
+    }
+
+    // ----------------------------------------------------------------
     // Admin: update app_metadata.role (used after guide application approval)
     // ----------------------------------------------------------------
     public async Task AdminUpdateUserRoleAsync(Guid userId, string role)

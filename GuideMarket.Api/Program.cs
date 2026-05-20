@@ -68,6 +68,7 @@ builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
 builder.Services.AddScoped<IBoostRepository, BoostRepository>();
 builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<IWithdrawalRepository, WithdrawalRepository>();
+builder.Services.AddScoped<IOtpRepository, OtpRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 builder.Services.AddSingleton<VnPayClient>();
@@ -77,6 +78,7 @@ builder.Services.AddHttpClient<SupabaseAuthClient>();
 builder.Services.AddHttpClient<SupabaseStorageClient>();
 
 // Services
+builder.Services.AddScoped<IOtpService, OtpService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ITourService, TourService>();
@@ -212,6 +214,7 @@ app.UseHangfireDashboard("/hangfire");
 var recurringJobs = app.Services.GetRequiredService<IRecurringJobManager>();
 recurringJobs.AddOrUpdate<ExpireBoostJob>("expire-boosts", x => x.ExecuteAsync(), Cron.Hourly);
 recurringJobs.AddOrUpdate<ExpireSubscriptionJob>("expire-subscriptions", x => x.ExecuteAsync(), Cron.Daily);
+recurringJobs.AddOrUpdate<CleanupExpiredOtpJob>("cleanup-expired-otp", x => x.ExecuteAsync(), Cron.Hourly);
 
 app.MapGet("/", () => Results.Ok(new { name = "GuideMarket API", status = "ok" }));
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));

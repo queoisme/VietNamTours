@@ -11,5 +11,11 @@ public class LoginResponse
 public class RegisterResponse
 {
     public string Email { get; set; } = default!;
-    public string Message { get; set; } = "Registration successful. Please check your email to confirm your account.";
+    public string Message { get; set; } = "Đăng ký thành công. Vui lòng kiểm tra email để lấy mã xác thực.";
+}
+
+public class VerifyEmailResponse
+{
+    public string Email { get; set; } = default!;
+    public string Message { get; set; } = "Xác thực email thành công. Vui lòng đăng nhập để tiếp tục.";
 }
