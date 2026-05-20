@@ -215,6 +215,8 @@ var recurringJobs = app.Services.GetRequiredService<IRecurringJobManager>();
 recurringJobs.AddOrUpdate<ExpireBoostJob>("expire-boosts", x => x.ExecuteAsync(), Cron.Hourly);
 recurringJobs.AddOrUpdate<ExpireSubscriptionJob>("expire-subscriptions", x => x.ExecuteAsync(), Cron.Daily);
 recurringJobs.AddOrUpdate<CleanupExpiredOtpJob>("cleanup-expired-otp", x => x.ExecuteAsync(), Cron.Hourly);
+recurringJobs.AddOrUpdate<BoostExpiringWarningJob>("boost-expiring-warning", x => x.ExecuteAsync(), Cron.Hourly);
+recurringJobs.AddOrUpdate<SubscriptionExpiringWarningJob>("subscription-expiring-warning", x => x.ExecuteAsync(), Cron.Daily);
 
 app.MapGet("/", () => Results.Ok(new { name = "GuideMarket API", status = "ok" }));
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));

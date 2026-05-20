@@ -10,8 +10,13 @@ namespace GuideMarket.Api.Services;
 public class WithdrawalService : IWithdrawalService
 {
     private readonly IUnitOfWork _uow;
+    private readonly INotificationService _notifications;
 
-    public WithdrawalService(IUnitOfWork uow) => _uow = uow;
+    public WithdrawalService(IUnitOfWork uow, INotificationService notifications)
+    {
+        _uow           = uow;
+        _notifications = notifications;
+    }
 
     public async Task<FinanceResponse> GetFinanceAsync(Guid guideId)
     {
@@ -108,6 +113,24 @@ public class WithdrawalService : IWithdrawalService
         _uow.Withdrawals.Update(w);
         await _uow.SaveChangesAsync();
 
+        await _notifications.CreateAsync(
+            w.GuideId, "withdrawal_approved", "Yêu cầu rút tiền được chấp thuận",
+            $"Yêu cầu rút {w.Amount:N0} VNĐ đã được duyệt. Số tiền thực nhận: {w.NetAmount:N0} VNĐ.",
+            "withdrawal", w.Id,
+            "Rút tiền được chấp thuận - GuideMarket",
+            $"""
+            <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #e0e0e0;border-radius:8px">
+              <h2 style="color:#2e7d32">Yêu cầu rút tiền được duyệt ✓</h2>
+              <p>Yêu cầu rút tiền của bạn đã được admin xử lý.</p>
+              <table style="width:100%;border-collapse:collapse;margin:16px 0">
+                <tr><td style="padding:8px;color:#666">Số tiền yêu cầu</td><td style="padding:8px;text-align:right"><strong>{w.Amount:N0} VNĐ</strong></td></tr>
+                <tr><td style="padding:8px;color:#666">Phí giao dịch (2%)</td><td style="padding:8px;text-align:right">{w.Fee:N0} VNĐ</td></tr>
+                <tr style="background:#f5f5f5"><td style="padding:8px"><strong>Thực nhận</strong></td><td style="padding:8px;text-align:right"><strong style="color:#2e7d32">{w.NetAmount:N0} VNĐ</strong></td></tr>
+              </table>
+              {(string.IsNullOrWhiteSpace(w.AdminNote) ? "" : $"<p style='color:#666'>Ghi chú: {w.AdminNote}</p>")}
+            </div>
+            """);
+
         return MapAdmin(w);
     }
 
@@ -135,6 +158,21 @@ public class WithdrawalService : IWithdrawalService
 
         _uow.Withdrawals.Update(w);
         await _uow.SaveChangesAsync();
+
+        await _notifications.CreateAsync(
+            w.GuideId, "withdrawal_rejected", "Yêu cầu rút tiền bị từ chối",
+            $"Yêu cầu rút {w.Amount:N0} VNĐ đã bị từ chối. Số tiền đã được hoàn lại vào số dư của bạn.",
+            "withdrawal", w.Id,
+            "Rút tiền bị từ chối - GuideMarket",
+            $"""
+            <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #e0e0e0;border-radius:8px">
+              <h2 style="color:#c62828">Yêu cầu rút tiền bị từ chối</h2>
+              <p>Yêu cầu rút <strong>{w.Amount:N0} VNĐ</strong> của bạn đã bị từ chối.</p>
+              <p>Số tiền đã được <strong>hoàn lại vào số dư</strong> tài khoản của bạn.</p>
+              {(string.IsNullOrWhiteSpace(w.AdminNote) ? "" : $"<p><strong>Lý do:</strong> {w.AdminNote}</p>")}
+              <p style="color:#666;font-size:14px">Vui lòng liên hệ hỗ trợ nếu bạn có thắc mắc.</p>
+            </div>
+            """);
 
         return MapAdmin(w);
     }
