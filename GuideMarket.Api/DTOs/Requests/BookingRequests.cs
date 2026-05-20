@@ -23,7 +23,7 @@ public class CancelBookingRequest
     public string? Reason { get; set; }
 }
 
-public class CreateVnPayRequest
+public class CreateMomoPaymentRequest
 {
     public Guid BookingId { get; set; }
 }
@@ -53,9 +53,9 @@ public class RejectBookingRequestValidator : AbstractValidator<RejectBookingRequ
     }
 }
 
-public class CreateVnPayRequestValidator : AbstractValidator<CreateVnPayRequest>
+public class CreateMomoPaymentRequestValidator : AbstractValidator<CreateMomoPaymentRequest>
 {
-    public CreateVnPayRequestValidator()
+    public CreateMomoPaymentRequestValidator()
     {
         RuleFor(x => x.BookingId).NotEmpty();
     }

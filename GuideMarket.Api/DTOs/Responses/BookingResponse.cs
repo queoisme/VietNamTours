@@ -47,7 +47,8 @@ public class BookingDetailResponse
     public DateTimeOffset UpdatedAt { get; set; }
 }
 
-public class VnPayPaymentUrlResponse
+public class MomoPaymentResponse
 {
-    public string PaymentUrl { get; set; } = default!;
+    public string PayUrl    { get; set; } = default!;
+    public string QrCodeUrl { get; set; } = default!;
 }

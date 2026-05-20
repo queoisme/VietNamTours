@@ -326,7 +326,7 @@ public class BookingService : IBookingService
         var booking = await _uow.Bookings.GetByPaymentTxnIdAsync(txnId);
         if (booking is null)
         {
-            _logger.LogWarning("VNPay IPN: booking not found for txnId {TxnId}", txnId);
+            _logger.LogWarning("MoMo IPN: booking not found for txnId {TxnId}", txnId);
             return;
         }
         if (booking.PaymentStatus == PaymentStatus.paid)
@@ -334,7 +334,7 @@ public class BookingService : IBookingService
 
         booking.PaymentStatus = PaymentStatus.paid;
         booking.PaymentPaidAt = DateTimeOffset.UtcNow;
-        booking.PaymentMethod = "vnpay";
+        booking.PaymentMethod = "momo";
         booking.UpdatedAt     = DateTimeOffset.UtcNow;
 
         var avail = await _uow.Tours.GetAvailabilityByDateAsync(booking.TourId, booking.TourDate);
@@ -343,7 +343,7 @@ public class BookingService : IBookingService
             if (avail.BookedSlots + booking.NumPeople > avail.MaxSlots)
             {
                 _logger.LogWarning(
-                    "VNPay IPN: slot overflow for booking {BookingId}, tour {TourId}",
+                    "MoMo IPN: slot overflow for booking {BookingId}, tour {TourId}",
                     booking.Id, booking.TourId);
             }
             else

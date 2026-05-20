@@ -17,19 +17,19 @@ public class SubscriptionService : ISubscriptionService
     };
 
     private readonly IUnitOfWork _uow;
-    private readonly VnPayClient _vnPay;
+    private readonly MomoClient  _momo;
 
-    public SubscriptionService(IUnitOfWork uow, VnPayClient vnPay)
+    public SubscriptionService(IUnitOfWork uow, MomoClient momo)
     {
-        _uow   = uow;
-        _vnPay = vnPay;
+        _uow  = uow;
+        _momo = momo;
     }
 
     public List<SubscriptionPlanInfo> GetPlans() =>
         Plans.Select(kv => new SubscriptionPlanInfo(kv.Key.ToString(), kv.Value.Price, kv.Value.Days, kv.Value.Desc))
              .ToList();
 
-    public async Task<string> CreateAsync(Guid guideId, CreateSubscriptionRequest request, string ipAddress)
+    public async Task<MomoPaymentResponse> CreateAsync(Guid guideId, CreateSubscriptionRequest request, string ipAddress)
     {
         var user = await _uow.Users.GetByIdAsync(guideId)
             ?? throw new KeyNotFoundException("User not found");
@@ -58,7 +58,8 @@ public class SubscriptionService : ISubscriptionService
         await _uow.Subscriptions.AddAsync(sub);
         await _uow.SaveChangesAsync();
 
-        return _vnPay.CreatePaymentUrl(txnRef, price, $"Subscription {plan}", ipAddress);
+        var (payUrl, qrCodeUrl) = await _momo.CreatePaymentAsync(txnRef, price, $"Subscription {plan}");
+        return new MomoPaymentResponse { PayUrl = payUrl, QrCodeUrl = qrCodeUrl };
     }
 
     public async Task<SubscriptionResponse?> GetMySubscriptionAsync(Guid guideId)

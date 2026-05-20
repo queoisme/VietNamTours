@@ -29,10 +29,10 @@ public class BoostsController : ControllerBase
     [Authorize]
     public async Task<IActionResult> CreateBoost([FromBody] CreateBoostRequest request)
     {
-        var userId = GetCurrentUserId();
-        var ip     = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
-        var url    = await _boosts.CreateAsync(userId, request, ip);
-        return StatusCode(201, ApiResponse<VnPayPaymentUrlResponse>.Ok(new VnPayPaymentUrlResponse { PaymentUrl = url }));
+        var userId   = GetCurrentUserId();
+        var ip       = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+        var payment  = await _boosts.CreateAsync(userId, request, ip);
+        return StatusCode(201, ApiResponse<MomoPaymentResponse>.Ok(payment));
     }
 
     [HttpGet("guides/me/boosts")]
@@ -58,10 +58,10 @@ public class BoostsController : ControllerBase
     [Authorize]
     public async Task<IActionResult> Subscribe([FromBody] CreateSubscriptionRequest request)
     {
-        var userId = GetCurrentUserId();
-        var ip     = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
-        var url    = await _subscriptions.CreateAsync(userId, request, ip);
-        return StatusCode(201, ApiResponse<VnPayPaymentUrlResponse>.Ok(new VnPayPaymentUrlResponse { PaymentUrl = url }));
+        var userId  = GetCurrentUserId();
+        var ip      = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+        var payment = await _subscriptions.CreateAsync(userId, request, ip);
+        return StatusCode(201, ApiResponse<MomoPaymentResponse>.Ok(payment));
     }
 
     [HttpGet("guides/me/subscription")]

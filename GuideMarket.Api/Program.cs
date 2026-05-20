@@ -71,7 +71,7 @@ builder.Services.AddScoped<IWithdrawalRepository, WithdrawalRepository>();
 builder.Services.AddScoped<IOtpRepository, OtpRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
-builder.Services.AddSingleton<VnPayClient>();
+builder.Services.AddSingleton<MomoClient>();
 
 // HttpClient + Supabase clients
 builder.Services.AddHttpClient<SupabaseAuthClient>();
@@ -166,6 +166,18 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "GuideMarket API", Version = "v1" });
+
+    // Prevent schema ID conflicts: use fully-qualified names (e.g. ApiResponse<List<X>> vs ApiResponse<X>)
+    c.CustomSchemaIds(type => type.FullName!.Replace("+", "."));
+
+    // DateOnly / DateOnly? need explicit registration so Swashbuckle doesn't attempt
+    // to reflect them as complex structs (causes 500 when both nullable and non-nullable
+    // variants appear across route params, query params, and response body properties)
+    c.MapType<DateOnly>(() => new Microsoft.OpenApi.Models.OpenApiSchema
+        { Type = "string", Format = "date" });
+    c.MapType<DateOnly?>(() => new Microsoft.OpenApi.Models.OpenApiSchema
+        { Type = "string", Format = "date", Nullable = true });
+
     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
         Name = "Authorization",
