@@ -51,7 +51,7 @@ public class BoostExpiringWarningJob
                 "Tour sắp hết boost",
                 $"Tour \"{title}\" sẽ hết boost sau khoảng 24 giờ nữa ({expiresDisplay}).",
                 "boost", boost.Id,
-                "Tour sắp hết boost - GuideMarket",
+                "Tour sắp hết boost - VietNamTours",
                 $"""
                 <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #e0e0e0;border-radius:8px">
                   <h2 style="color:#e65100">⏰ Tour sắp hết boost</h2>

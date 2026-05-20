@@ -74,7 +74,7 @@ public class BookingService : IBookingService
             created.GuideId, "new_booking", "Bạn có booking mới!",
             $"Khách {created.Customer.FullName} đặt tour \"{created.Tour.Title}\" ngày {created.TourDate:dd/MM/yyyy}.",
             "booking", created.Id,
-            "Booking mới - GuideMarket",
+            "Booking mới - VietNamTours",
             $"<p>Khách hàng <strong>{created.Customer.FullName}</strong> đã đặt tour <strong>{created.Tour.Title}</strong> vào ngày {created.TourDate:dd/MM/yyyy}.</p>");
 
         return MapToDetail(created);
@@ -138,7 +138,7 @@ public class BookingService : IBookingService
             updated.CustomerId, "booking_confirmed", "Booking của bạn đã được xác nhận!",
             $"Tour \"{updated.Tour.Title}\" ngày {updated.TourDate:dd/MM/yyyy} đã được guide xác nhận.",
             "booking", updated.Id,
-            "Booking xác nhận - GuideMarket",
+            "Booking xác nhận - VietNamTours",
             $"<p>Tour <strong>{updated.Tour.Title}</strong> vào ngày {updated.TourDate:dd/MM/yyyy} đã được guide xác nhận.</p>");
 
         return MapToDetail(updated);
@@ -176,7 +176,7 @@ public class BookingService : IBookingService
             updated.CustomerId, "booking_rejected", "Booking của bạn đã bị từ chối",
             $"Tour \"{updated.Tour.Title}\" ngày {updated.TourDate:dd/MM/yyyy} đã bị guide từ chối. Lý do: {request.Reason}",
             "booking", updated.Id,
-            "Booking bị từ chối - GuideMarket",
+            "Booking bị từ chối - VietNamTours",
             $"<p>Tour <strong>{updated.Tour.Title}</strong> ngày {updated.TourDate:dd/MM/yyyy} đã bị guide từ chối.</p><p>Lý do: {request.Reason}</p>");
 
         return MapToDetail(updated);
@@ -219,7 +219,7 @@ public class BookingService : IBookingService
             updated.CustomerId, "booking_completed", "Tour đã hoàn thành!",
             $"Tour \"{updated.Tour.Title}\" ngày {updated.TourDate:dd/MM/yyyy} đã hoàn thành. Hãy để lại đánh giá của bạn!",
             "booking", updated.Id,
-            "Tour hoàn thành - GuideMarket",
+            "Tour hoàn thành - VietNamTours",
             $"<p>Tour <strong>{updated.Tour.Title}</strong> đã hoàn thành. Hãy để lại đánh giá của bạn!</p>");
 
         return MapToDetail(updated);
@@ -302,7 +302,7 @@ public class BookingService : IBookingService
                 updated.GuideId, "booking_cancelled", "Booking đã bị huỷ",
                 $"Booking tour \"{updated.Tour.Title}\" ngày {updated.TourDate:dd/MM/yyyy} đã bị huỷ.",
                 "booking", updated.Id,
-                "Booking bị huỷ - GuideMarket",
+                "Booking bị huỷ - VietNamTours",
                 $"<p>Booking tour <strong>{updated.Tour.Title}</strong> ngày {updated.TourDate:dd/MM/yyyy} đã bị huỷ.</p>");
         }
 

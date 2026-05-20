@@ -126,9 +126,9 @@ public class GuideApplicationService : IGuideApplicationService
 
         await _notifications.CreateAsync(
             app.UserId, "profile_approved", "Hồ sơ guide của bạn đã được duyệt!",
-            "Chúc mừng! Bạn đã trở thành guide trên GuideMarket.",
+            "Chúc mừng! Bạn đã trở thành guide trên VietNamTours.",
             "guide_application", app.Id,
-            "Hồ sơ guide được duyệt - GuideMarket",
+            "Hồ sơ guide được duyệt - VietNamTours",
             "<p>Chúc mừng! Hồ sơ guide của bạn đã được duyệt. Bạn có thể bắt đầu đăng tour ngay.</p>");
 
         return MapToResponse(app, user);
@@ -156,7 +156,7 @@ public class GuideApplicationService : IGuideApplicationService
             app.UserId, "profile_rejected", "Hồ sơ guide bị từ chối",
             $"Hồ sơ guide của bạn đã bị từ chối. Lý do: {request.RejectionReason}",
             "guide_application", app.Id,
-            "Hồ sơ guide bị từ chối - GuideMarket",
+            "Hồ sơ guide bị từ chối - VietNamTours",
             $"<p>Hồ sơ guide của bạn đã bị từ chối.</p><p>Lý do: {request.RejectionReason}</p>");
 
         return MapToResponse(app, app.Applicant);

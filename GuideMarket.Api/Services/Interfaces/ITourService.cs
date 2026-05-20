@@ -18,4 +18,8 @@ public interface ITourService
     Task<TourAvailabilityResponse> CreateAvailabilityAsync(Guid userId, Guid tourId, CreateAvailabilityRequest request);
     Task<TourAvailabilityResponse> UpdateAvailabilityAsync(Guid userId, Guid tourId, DateOnly date, UpdateAvailabilityRequest request);
     Task DeleteAvailabilityAsync(Guid userId, Guid tourId, DateOnly date);
+
+    Task<string[]> AddImagesAsync(Guid guideId, Guid tourId, string[] newUrls);
+    Task<string[]> RemoveImageAsync(Guid guideId, Guid tourId, string url);
+    Task<string> UpdateCoverImageAsync(Guid guideId, Guid tourId, string url);
 }

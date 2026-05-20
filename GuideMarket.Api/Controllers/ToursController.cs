@@ -1,5 +1,6 @@
 using GuideMarket.Api.DTOs.Requests;
 using GuideMarket.Api.DTOs.Responses;
+using GuideMarket.Api.Infrastructure;
 using GuideMarket.Api.Models;
 using GuideMarket.Api.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -12,8 +13,16 @@ namespace GuideMarket.Api.Controllers;
 public class ToursController : ControllerBase
 {
     private readonly ITourService _tourService;
+    private readonly SupabaseStorageClient _storage;
 
-    public ToursController(ITourService tourService) => _tourService = tourService;
+    private static readonly string[] AllowedImageTypes = ["image/jpeg", "image/png", "image/webp"];
+    private const long MaxImageSize = 10 * 1024 * 1024; // 10 MB
+
+    public ToursController(ITourService tourService, SupabaseStorageClient storage)
+    {
+        _tourService = tourService;
+        _storage = storage;
+    }
 
     /// <summary>Tìm kiếm tour (public).</summary>
     [HttpGet("tours")]
@@ -109,6 +118,76 @@ public class ToursController : ControllerBase
             Size = clampedSize,
             Total = total,
         }));
+    }
+
+    // --- Image management (Guide only) ---
+
+    /// <summary>Upload 1-nhiều ảnh cho tour (max 10 tổng). Trả về danh sách URL hiện tại.</summary>
+    [HttpPost("tours/{id:guid}/images")]
+    [Authorize]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UploadImages(Guid id)
+    {
+        var files = Request.Form.Files;
+        if (files.Count == 0)
+            return BadRequest(ApiResponse<object>.Fail("No files provided"));
+
+        foreach (var f in files)
+        {
+            if (f.Length > MaxImageSize)
+                return BadRequest(ApiResponse<object>.Fail($"File '{f.FileName}' exceeds 10 MB limit"));
+            if (!AllowedImageTypes.Contains(f.ContentType))
+                return BadRequest(ApiResponse<object>.Fail($"File '{f.FileName}' must be JPEG, PNG, or WebP"));
+        }
+
+        var userId = GetCurrentUserId();
+        var uploadedUrls = new List<string>();
+
+        foreach (var file in files)
+        {
+            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+            var path = $"{id}/{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}_{Guid.NewGuid():N}{ext}";
+            using var stream = file.OpenReadStream();
+            var url = await _storage.UploadPublicAsync("tour-images", path, stream, file.ContentType);
+            uploadedUrls.Add(url);
+        }
+
+        var images = await _tourService.AddImagesAsync(userId, id, [.. uploadedUrls]);
+        return Ok(ApiResponse<string[]>.Ok(images, "Images uploaded"));
+    }
+
+    /// <summary>Xoá 1 ảnh khỏi tour.</summary>
+    [HttpDelete("tours/{id:guid}/images")]
+    [Authorize]
+    public async Task<IActionResult> RemoveImage(Guid id, [FromBody] RemoveImageRequest request)
+    {
+        var userId = GetCurrentUserId();
+        var images = await _tourService.RemoveImageAsync(userId, id, request.Url);
+        return Ok(ApiResponse<string[]>.Ok(images, "Image removed"));
+    }
+
+    /// <summary>Upload ảnh bìa tour.</summary>
+    [HttpPost("tours/{id:guid}/cover-image")]
+    [Authorize]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UploadCoverImage(Guid id, [FromForm] IFormFile file)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(ApiResponse<object>.Fail("File is required"));
+        if (file.Length > MaxImageSize)
+            return BadRequest(ApiResponse<object>.Fail("File exceeds 10 MB limit"));
+        if (!AllowedImageTypes.Contains(file.ContentType))
+            return BadRequest(ApiResponse<object>.Fail("Only JPEG, PNG, or WebP are allowed"));
+
+        var userId = GetCurrentUserId();
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        var path = $"{id}/cover{ext}";
+
+        using var stream = file.OpenReadStream();
+        var url = await _storage.UploadPublicAsync("tour-images", path, stream, file.ContentType);
+
+        var coverUrl = await _tourService.UpdateCoverImageAsync(userId, id, url);
+        return Ok(ApiResponse<string>.Ok(coverUrl, "Cover image updated"));
     }
 
     // --- Availability management (Guide only) ---
