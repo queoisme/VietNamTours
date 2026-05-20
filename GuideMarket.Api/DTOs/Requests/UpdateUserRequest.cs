@@ -9,6 +9,12 @@ public class AvatarUploadRequest
     public IFormFile? File { get; set; }
 }
 
+/// <summary>Generic single-file wrapper — required by Swashbuckle for direct IFormFile params.</summary>
+public class SingleFileUploadRequest
+{
+    public IFormFile? File { get; set; }
+}
+
 public class UpdateUserRequest
 {
     public string? FullName { get; set; }

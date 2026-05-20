@@ -1,3 +1,4 @@
+using GuideMarket.Api.DTOs.Requests;
 using GuideMarket.Api.DTOs.Responses;
 using GuideMarket.Api.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
@@ -25,8 +26,9 @@ public class UploadsController : ControllerBase
     /// <summary>Upload CCCD / hộ chiếu (1 file, private). Trả về storage path để dùng trong guide-applications.</summary>
     [HttpPost("identity-doc")]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> UploadIdentityDoc([FromForm] IFormFile file)
+    public async Task<IActionResult> UploadIdentityDoc([FromForm] SingleFileUploadRequest request)
     {
+        var file = request.File;
         if (file is null || file.Length == 0)
             return BadRequest(ApiResponse<object>.Fail("File is required"));
         if (file.Length > MaxDocSize)

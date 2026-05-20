@@ -169,8 +169,9 @@ public class ToursController : ControllerBase
     [HttpPost("tours/{id:guid}/cover-image")]
     [Authorize]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> UploadCoverImage(Guid id, [FromForm] IFormFile file)
+    public async Task<IActionResult> UploadCoverImage(Guid id, [FromForm] SingleFileUploadRequest request)
     {
+        var file = request.File;
         if (file is null || file.Length == 0)
             return BadRequest(ApiResponse<object>.Fail("File is required"));
         if (file.Length > MaxImageSize)
