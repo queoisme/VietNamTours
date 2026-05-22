@@ -12,8 +12,13 @@ namespace GuideMarket.Api.Controllers;
 public class AdminController : ControllerBase
 {
     private readonly IAdminService _admin;
+    private readonly ISubscriptionService _subscriptions;
 
-    public AdminController(IAdminService admin) => _admin = admin;
+    public AdminController(IAdminService admin, ISubscriptionService subscriptions)
+    {
+        _admin = admin;
+        _subscriptions = subscriptions;
+    }
 
     [HttpGet("stats")]
     public async Task<IActionResult> GetStats()
@@ -96,6 +101,26 @@ public class AdminController : ControllerBase
         var csv    = await _admin.ExportBookingsAsync(userId, from, to, status);
         var filename = $"bookings_{DateTime.UtcNow:yyyyMMdd}.csv";
         return File(csv, "text/csv", filename);
+    }
+
+    // ── Subscription Plans ──────────────────────────────────────────────────
+
+    /// <summary>Xem tất cả cấu hình giá subscription.</summary>
+    [HttpGet("subscription-plans")]
+    public async Task<IActionResult> GetSubscriptionPlans()
+    {
+        var plans = await _subscriptions.GetPlansAsync();
+        return Ok(ApiResponse<List<SubscriptionPlanInfo>>.Ok(plans));
+    }
+
+    /// <summary>Cập nhật giá / số ngày / mô tả của một gói subscription.</summary>
+    [HttpPut("subscription-plans/{plan}")]
+    public async Task<IActionResult> UpdateSubscriptionPlan(
+        string plan, [FromBody] UpdateSubscriptionPlanRequest request)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _subscriptions.UpdatePlanAsync(userId, plan, request);
+        return Ok(ApiResponse<SubscriptionPlanInfo>.Ok(result, $"Đã cập nhật gói {plan}"));
     }
 
     private Guid GetCurrentUserId()

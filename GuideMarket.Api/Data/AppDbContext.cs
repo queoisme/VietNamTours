@@ -20,6 +20,7 @@ public class AppDbContext : DbContext
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<Boost> Boosts => Set<Boost>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
+    public DbSet<SubscriptionPlanConfig> SubscriptionPlanConfigs => Set<SubscriptionPlanConfig>();
     public DbSet<Withdrawal> Withdrawals => Set<Withdrawal>();
     public DbSet<OtpVerification> OtpVerifications => Set<OtpVerification>();
 
@@ -158,6 +159,18 @@ public class AppDbContext : DbContext
         {
             e.ToTable("withdrawals");
             e.HasOne(w => w.Guide).WithMany().HasForeignKey(w => w.GuideId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SubscriptionPlanConfig>(e =>
+        {
+            e.ToTable("subscription_plan_configs");
+            e.HasKey(p => p.Plan);
+            e.Property(p => p.Plan).HasColumnName("plan").HasMaxLength(20).ValueGeneratedNever();
+            e.Property(p => p.Price).HasColumnName("price");
+            e.Property(p => p.Days).HasColumnName("days");
+            e.Property(p => p.Description).HasColumnName("description");
+            e.Property(p => p.IsActive).HasColumnName("is_active");
+            e.Property(p => p.UpdatedAt).HasColumnName("updated_at");
         });
 
         modelBuilder.Entity<OtpVerification>(e =>

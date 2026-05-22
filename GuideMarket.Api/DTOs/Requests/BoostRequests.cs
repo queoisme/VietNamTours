@@ -31,3 +31,24 @@ public class CreateSubscriptionRequestValidator : AbstractValidator<CreateSubscr
             .WithMessage("Plan must be premium or pro");
     }
 }
+
+public class UpdateSubscriptionPlanRequest
+{
+    public decimal? Price { get; set; }
+    public int? Days { get; set; }
+    public string? Description { get; set; }
+    public bool? IsActive { get; set; }
+}
+
+public class UpdateSubscriptionPlanRequestValidator : AbstractValidator<UpdateSubscriptionPlanRequest>
+{
+    public UpdateSubscriptionPlanRequestValidator()
+    {
+        When(x => x.Price.HasValue, () =>
+            RuleFor(x => x.Price!.Value).GreaterThan(0).WithMessage("Giá phải lớn hơn 0"));
+        When(x => x.Days.HasValue, () =>
+            RuleFor(x => x.Days!.Value).GreaterThan(0).WithMessage("Số ngày phải lớn hơn 0"));
+        When(x => x.Description is not null, () =>
+            RuleFor(x => x.Description!).MaximumLength(500));
+    }
+}

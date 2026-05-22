@@ -10,12 +10,6 @@ namespace GuideMarket.Api.Services;
 
 public class SubscriptionService : ISubscriptionService
 {
-    private static readonly Dictionary<SubscriptionPlan, (decimal Price, int Days, string Desc)> Plans = new()
-    {
-        [SubscriptionPlan.premium] = (299_000,  30,  "10% commission, unlimited tours"),
-        [SubscriptionPlan.pro]     = (799_000,  90,  "8% commission, unlimited tours, priority support"),
-    };
-
     private readonly IUnitOfWork _uow;
     private readonly MomoClient  _momo;
 
@@ -25,10 +19,45 @@ public class SubscriptionService : ISubscriptionService
         _momo = momo;
     }
 
-    public List<SubscriptionPlanInfo> GetPlans() =>
-        Plans.Select(kv => new SubscriptionPlanInfo(kv.Key.ToString(), kv.Value.Price, kv.Value.Days, kv.Value.Desc))
-             .ToList();
+    // ----------------------------------------------------------------
+    // Public: lấy danh sách plans từ DB
+    // ----------------------------------------------------------------
+    public async Task<List<SubscriptionPlanInfo>> GetPlansAsync()
+    {
+        var configs = await _uow.SubscriptionPlanConfigs.GetAllActiveAsync();
+        return configs
+            .Select(c => new SubscriptionPlanInfo(c.Plan, c.Price, c.Days, c.Description))
+            .ToList();
+    }
 
+    // ----------------------------------------------------------------
+    // Admin: cập nhật giá / số ngày / mô tả một plan
+    // ----------------------------------------------------------------
+    public async Task<SubscriptionPlanInfo> UpdatePlanAsync(Guid adminId, string plan, UpdateSubscriptionPlanRequest request)
+    {
+        var admin = await _uow.Users.GetByIdAsync(adminId)
+            ?? throw new KeyNotFoundException("User not found");
+        if (admin.Role != UserRole.admin)
+            throw new ForbiddenAccessException("Only admins can update subscription plans");
+
+        var config = await _uow.SubscriptionPlanConfigs.GetByPlanAsync(plan.ToLower())
+            ?? throw new KeyNotFoundException($"Plan '{plan}' không tồn tại");
+
+        if (request.Price.HasValue)       config.Price       = request.Price.Value;
+        if (request.Days.HasValue)        config.Days        = request.Days.Value;
+        if (request.Description is not null) config.Description = request.Description;
+        if (request.IsActive.HasValue)    config.IsActive    = request.IsActive.Value;
+        config.UpdatedAt = DateTimeOffset.UtcNow;
+
+        _uow.SubscriptionPlanConfigs.Update(config);
+        await _uow.SaveChangesAsync();
+
+        return new SubscriptionPlanInfo(config.Plan, config.Price, config.Days, config.Description);
+    }
+
+    // ----------------------------------------------------------------
+    // Guide: mua subscription
+    // ----------------------------------------------------------------
     public async Task<MomoPaymentResponse> CreateAsync(Guid guideId, CreateSubscriptionRequest request, string ipAddress)
     {
         var user = await _uow.Users.GetByIdAsync(guideId)
@@ -36,10 +65,12 @@ public class SubscriptionService : ISubscriptionService
         if (user.Role != UserRole.guide)
             throw new ForbiddenAccessException("Only guides can subscribe");
 
-        if (!Enum.TryParse<SubscriptionPlan>(request.Plan, true, out var plan) || plan == SubscriptionPlan.free)
+        var config = await _uow.SubscriptionPlanConfigs.GetByPlanAsync(request.Plan.ToLower())
+            ?? throw new InvalidOperationException("Invalid subscription plan");
+
+        if (!Enum.TryParse<SubscriptionPlan>(config.Plan, true, out var plan) || plan == SubscriptionPlan.free)
             throw new InvalidOperationException("Invalid subscription plan");
 
-        var (price, days, _) = Plans[plan];
         var txnRef = "sb" + Guid.NewGuid().ToString("N")[..13];
         var now    = DateTimeOffset.UtcNow;
 
@@ -48,9 +79,9 @@ public class SubscriptionService : ISubscriptionService
             Id           = Guid.NewGuid(),
             GuideId      = guideId,
             Plan         = plan,
-            PricePaid    = price,
+            PricePaid    = config.Price,
             StartsAt     = now,
-            ExpiresAt    = now.AddDays(days),
+            ExpiresAt    = now.AddDays(config.Days),
             PaymentTxnId = txnRef,
             Status       = BoostStatus.cancelled,
         };
@@ -58,7 +89,7 @@ public class SubscriptionService : ISubscriptionService
         await _uow.Subscriptions.AddAsync(sub);
         await _uow.SaveChangesAsync();
 
-        var (payUrl, qrCodeUrl) = await _momo.CreatePaymentAsync(txnRef, price, $"Subscription {plan}");
+        var (payUrl, qrCodeUrl) = await _momo.CreatePaymentAsync(txnRef, config.Price, $"Subscription {plan}");
         return new MomoPaymentResponse { PayUrl = payUrl, QrCodeUrl = qrCodeUrl };
     }
 

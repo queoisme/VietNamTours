@@ -13,6 +13,7 @@ public interface IUnitOfWork : IDisposable
     IConversationRepository Conversations { get; }
     IBoostRepository Boosts { get; }
     ISubscriptionRepository Subscriptions { get; }
+    ISubscriptionPlanConfigRepository SubscriptionPlanConfigs { get; }
     IWithdrawalRepository Withdrawals { get; }
     Task<int> SaveChangesAsync();
 }

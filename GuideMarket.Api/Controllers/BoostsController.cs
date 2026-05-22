@@ -51,8 +51,11 @@ public class BoostsController : ControllerBase
     // ── Subscriptions ────────────────────────────────────────────────────────
 
     [HttpGet("subscriptions/plans")]
-    public IActionResult GetSubscriptionPlans() =>
-        Ok(ApiResponse<List<SubscriptionPlanInfo>>.Ok(_subscriptions.GetPlans()));
+    public async Task<IActionResult> GetSubscriptionPlans()
+    {
+        var plans = await _subscriptions.GetPlansAsync();
+        return Ok(ApiResponse<List<SubscriptionPlanInfo>>.Ok(plans));
+    }
 
     [HttpPost("subscriptions")]
     [Authorize]
