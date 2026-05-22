@@ -18,6 +18,12 @@ public interface IAuthService
     Task RequestOtpAsync(string phone);
     Task VerifyPhoneAsync(Guid userId, string phone, string token);
 
-    /// <summary>Tạo/cập nhật user từ Supabase webhook (email confirmed).</summary>
-    Task CreateUserFromWebhookAsync(Guid userId, string email, string fullName);
+    /// <summary>Tạo/cập nhật user từ Supabase webhook (email confirmed hoặc OAuth sign-up).</summary>
+    Task CreateUserFromWebhookAsync(Guid userId, string email, string fullName, string? avatarUrl = null);
+
+    /// <summary>Trả về OAuth URL để frontend redirect user đến Google login.</summary>
+    string GetGoogleOAuthUrl(string? redirectTo);
+
+    /// <summary>Sau khi OAuth hoàn tất, đồng bộ user vào local DB và trả về profile.</summary>
+    Task<LoginResponse> HandleSocialLoginAsync(Guid userId);
 }

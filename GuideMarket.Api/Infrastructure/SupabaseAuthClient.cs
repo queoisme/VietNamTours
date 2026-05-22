@@ -218,6 +218,32 @@ public class SupabaseAuthClient
     }
 
     // ----------------------------------------------------------------
+    // OAuth: get redirect URL for a provider (Google, etc.)
+    // ----------------------------------------------------------------
+    public string GetOAuthUrl(string provider, string? redirectTo)
+    {
+        var url = $"{_baseUrl}/authorize?provider={Uri.EscapeDataString(provider)}&scopes=email%20profile";
+        if (!string.IsNullOrWhiteSpace(redirectTo))
+            url += $"&redirect_to={Uri.EscapeDataString(redirectTo)}";
+        return url;
+    }
+
+    // ----------------------------------------------------------------
+    // Admin: get a single user (used as fallback when webhook hasn't fired yet)
+    // ----------------------------------------------------------------
+    public async Task<SupabaseUserDto> AdminGetUserAsync(Guid userId)
+    {
+        var req = BuildRequest(HttpMethod.Get, $"/admin/users/{userId}", null, useServiceRole: true);
+        var res = await _http.SendAsync(req);
+        var content = await res.Content.ReadAsStringAsync();
+
+        if (!res.IsSuccessStatusCode)
+            throw new KeyNotFoundException($"User {userId} not found in Supabase");
+
+        return JsonSerializer.Deserialize<SupabaseUserDto>(content, JsonOpts)!;
+    }
+
+    // ----------------------------------------------------------------
     // Admin: update app_metadata.role (used after guide application approval)
     // ----------------------------------------------------------------
     public async Task AdminUpdateUserRoleAsync(Guid userId, string role)
@@ -286,5 +312,6 @@ public class SupabaseUserDto
     public Guid Id { get; set; }
     public string Email { get; set; } = default!;
     public Dictionary<string, JsonElement>? UserMetadata { get; set; }
+    public Dictionary<string, JsonElement>? RawUserMetaData { get; set; }
     public string? EmailConfirmedAt { get; set; }
 }

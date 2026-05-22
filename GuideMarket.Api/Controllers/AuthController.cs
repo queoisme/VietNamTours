@@ -109,4 +109,34 @@ public class AuthController : ControllerBase
         await _authService.VerifyPhoneAsync(userId, request.Phone, request.Token);
         return Ok(ApiResponse<object>.Ok(null!, "Phone number verified successfully"));
     }
+
+    /// <summary>
+    /// Trả về URL để frontend redirect user đến trang đăng nhập Google.
+    /// Sau khi Google xác thực, Supabase sẽ redirect về redirectTo với access_token trong URL hash.
+    /// </summary>
+    [HttpGet("google")]
+    public IActionResult GetGoogleOAuthUrl([FromQuery] string? redirectTo)
+    {
+        var url = _authService.GetGoogleOAuthUrl(redirectTo);
+        return Ok(ApiResponse<GoogleOAuthUrlResponse>.Ok(
+            new GoogleOAuthUrlResponse { Url = url, Provider = "google" },
+            "Redirect user to this URL to sign in with Google"));
+    }
+
+    /// <summary>
+    /// Gọi sau khi frontend nhận được access_token từ Google OAuth.
+    /// Backend đồng bộ user vào local DB và trả về thông tin profile.
+    /// </summary>
+    [HttpPost("social/login")]
+    [Authorize]
+    public async Task<IActionResult> SocialLogin()
+    {
+        var sub = User.FindFirst("sub")?.Value
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(sub, out var userId))
+            return Unauthorized(ApiResponse<object>.Fail("Invalid token"));
+
+        var result = await _authService.HandleSocialLoginAsync(userId);
+        return Ok(ApiResponse<LoginResponse>.Ok(result, "Social login successful"));
+    }
 }

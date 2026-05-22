@@ -19,3 +19,9 @@ public class VerifyEmailResponse
     public string Email { get; set; } = default!;
     public string Message { get; set; } = "Xác thực email thành công. Vui lòng đăng nhập để tiếp tục.";
 }
+
+public class GoogleOAuthUrlResponse
+{
+    public string Url { get; set; } = default!;
+    public string Provider { get; set; } = "google";
+}

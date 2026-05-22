@@ -285,24 +285,117 @@ public class AuthService : IAuthService
     }
 
     // ----------------------------------------------------------------
-    // Webhook fallback (giữ lại)
+    // Webhook (email/password sign-up và OAuth sign-up)
     // ----------------------------------------------------------------
-    public async Task CreateUserFromWebhookAsync(Guid userId, string email, string fullName)
+    public async Task CreateUserFromWebhookAsync(Guid userId, string email, string fullName, string? avatarUrl = null)
     {
         var exists = await _uow.Users.ExistsAsync(userId);
         if (exists) return;
 
         await _uow.Users.AddAsync(new User
         {
-            Id = userId,
-            Email = email,
-            FullName = fullName,
-            Role = UserRole.customer,
+            Id        = userId,
+            Email     = email,
+            FullName  = fullName,
+            AvatarUrl = avatarUrl,
+            Role      = UserRole.customer,
             IsVerified = true,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
         });
         await _uow.SaveChangesAsync();
         _logger.LogInformation("User {UserId} created from webhook", userId);
+    }
+
+    // ----------------------------------------------------------------
+    // Google OAuth
+    // ----------------------------------------------------------------
+    public string GetGoogleOAuthUrl(string? redirectTo)
+    {
+        return _supabase.GetOAuthUrl("google", redirectTo);
+    }
+
+    public async Task<LoginResponse> HandleSocialLoginAsync(Guid userId)
+    {
+        var user = await _uow.Users.GetByIdAsync(userId);
+
+        if (user is null)
+        {
+            // Webhook chưa kịp fire — lấy metadata từ Supabase và tự tạo user
+            var supabaseUser = await _supabase.AdminGetUserAsync(userId);
+            var fullName  = ExtractFullName(supabaseUser) ?? supabaseUser.Email;
+            var avatarUrl = ExtractAvatarUrl(supabaseUser);
+
+            await _uow.Users.AddAsync(new User
+            {
+                Id        = userId,
+                Email     = supabaseUser.Email,
+                FullName  = fullName,
+                AvatarUrl = avatarUrl,
+                Role      = UserRole.customer,
+                IsVerified = true,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await _uow.SaveChangesAsync();
+
+            user = await _uow.Users.GetByIdAsync(userId)!;
+            _logger.LogInformation("User {UserId} created via social login fallback", userId);
+        }
+
+        if (user!.IsBanned)
+            throw new UnauthorizedAccessException("Tài khoản của bạn đã bị khóa");
+
+        return new LoginResponse
+        {
+            AccessToken  = string.Empty,   // frontend đã có token
+            RefreshToken = string.Empty,
+            ExpiresIn    = 0,
+            User = new UserResponse
+            {
+                Id         = user.Id,
+                Email      = user.Email,
+                FullName   = user.FullName,
+                Phone      = user.Phone,
+                AvatarUrl  = user.AvatarUrl,
+                Role       = user.Role.ToString(),
+                IsVerified = user.IsVerified,
+                IsBanned   = user.IsBanned,
+                CreatedAt  = user.CreatedAt,
+            }
+        };
+    }
+
+    // ----------------------------------------------------------------
+    // Helpers
+    // ----------------------------------------------------------------
+    private static string? ExtractFullName(SupabaseUserDto user)
+    {
+        if (user.UserMetadata?.TryGetValue("full_name", out var fn) == true
+            && fn.ValueKind == System.Text.Json.JsonValueKind.String)
+            return fn.GetString();
+
+        if (user.RawUserMetaData?.TryGetValue("full_name", out var rfn) == true
+            && rfn.ValueKind == System.Text.Json.JsonValueKind.String)
+            return rfn.GetString();
+
+        if (user.RawUserMetaData?.TryGetValue("name", out var n) == true
+            && n.ValueKind == System.Text.Json.JsonValueKind.String)
+            return n.GetString();
+
+        return null;
+    }
+
+    private static string? ExtractAvatarUrl(SupabaseUserDto user)
+    {
+        if (user.RawUserMetaData?.TryGetValue("avatar_url", out var av) == true
+            && av.ValueKind == System.Text.Json.JsonValueKind.String)
+            return av.GetString();
+
+        if (user.RawUserMetaData?.TryGetValue("picture", out var pic) == true
+            && pic.ValueKind == System.Text.Json.JsonValueKind.String)
+            return pic.GetString();
+
+        return null;
     }
 }
