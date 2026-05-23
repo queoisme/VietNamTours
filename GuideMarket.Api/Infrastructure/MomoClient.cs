@@ -96,10 +96,10 @@ public class MomoClient
     }
 
     public string GetFrontendSuccessUrl(string orderId) =>
-        $"{_frontendBaseUrl}/payment/success?txnRef={orderId}";
+        $"{_frontendBaseUrl.TrimEnd('/')}/payment/success?txnRef={orderId}";
 
     public string GetFrontendFailedUrl(string resultCode) =>
-        $"{_frontendBaseUrl}/payment/failed?code={resultCode}";
+        $"{_frontendBaseUrl.TrimEnd('/')}/payment/failed?code={resultCode}";
 
     private static string HmacSha256(string key, string data)
     {
