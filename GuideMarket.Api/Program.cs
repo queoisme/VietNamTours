@@ -92,14 +92,20 @@ builder.Services.AddScoped<IAdminService, AdminService>();
 var smtpHost = Environment.GetEnvironmentVariable("SMTP_HOST")
                ?? Environment.GetEnvironmentVariable("Smtp__Host")
                ?? builder.Configuration["Smtp:Host"];
+var brevoApiKey = Environment.GetEnvironmentVariable("BREVO_API_KEY")
+                 ?? builder.Configuration["Brevo:ApiKey"];
 var sendGridKey = Environment.GetEnvironmentVariable("SENDGRID_API_KEY")
                   ?? builder.Configuration["SendGrid:ApiKey"];
-var emailProvider = !string.IsNullOrWhiteSpace(smtpHost) ? "SMTP"
+var emailProvider = !string.IsNullOrWhiteSpace(brevoApiKey) ? "BrevoAPI"
+    : !string.IsNullOrWhiteSpace(smtpHost) ? "SMTP"
     : !string.IsNullOrWhiteSpace(sendGridKey) ? "SendGrid"
     : "Resend";
-Console.WriteLine($"[EMAIL] Provider selected: {emailProvider} | Smtp:Host={smtpHost ?? "(null)"}");
+Console.WriteLine($"[EMAIL] Provider selected: {emailProvider} | BrevoApiKeyConfigured={!string.IsNullOrWhiteSpace(brevoApiKey)} | Smtp:Host={smtpHost ?? "(null)"}");
 builder.Services.AddScoped<IEmailService>(sp =>
 {
+    if (!string.IsNullOrWhiteSpace(brevoApiKey))
+        return new BrevoApiEmailService(sp.GetRequiredService<IHttpClientFactory>(), builder.Configuration);
+
     if (!string.IsNullOrWhiteSpace(smtpHost))
         return new SmtpEmailService(builder.Configuration);
 
