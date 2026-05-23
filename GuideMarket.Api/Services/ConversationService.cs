@@ -17,25 +17,57 @@ public class ConversationService : IConversationService
     public async Task<(List<ConversationListItemResponse> Items, long Total)> GetConversationsAsync(
         Guid userId, int page, int size)
     {
-        var (items, total) = await _uow.Conversations.GetByUserIdAsync(userId, page, size);
-        return (items.Select(c => MapList(c, userId)).ToList(), total);
+        try
+        {
+            var (items, total) = await _uow.Conversations.GetByUserIdAsync(userId, page, size);
+            return (items.Select(c => MapList(c, userId)).ToList(), total);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"Cannot load conversations for user {userId}. {ex.InnerException?.Message ?? ex.Message}");
+        }
     }
 
     public async Task<ConversationListItemResponse> GetConversationAsync(Guid userId, Guid conversationId)
     {
-        var conv = await _uow.Conversations.GetByIdForUserAsync(conversationId, userId)
-            ?? throw new KeyNotFoundException("Conversation not found or access denied");
-        return MapList(conv, userId);
+        try
+        {
+            var conv = await _uow.Conversations.GetByIdForUserAsync(conversationId, userId)
+                ?? throw new KeyNotFoundException("Conversation not found or access denied");
+            return MapList(conv, userId);
+        }
+        catch (KeyNotFoundException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"Cannot load conversation {conversationId}. {ex.InnerException?.Message ?? ex.Message}");
+        }
     }
 
     public async Task<(List<MessageResponse> Items, long Total)> GetMessagesAsync(
         Guid userId, Guid conversationId, DateTimeOffset? before, int size)
     {
-        var conv = await _uow.Conversations.GetByIdForUserAsync(conversationId, userId)
-            ?? throw new KeyNotFoundException("Conversation not found or access denied");
+        try
+        {
+            var conv = await _uow.Conversations.GetByIdForUserAsync(conversationId, userId)
+                ?? throw new KeyNotFoundException("Conversation not found or access denied");
 
-        var (items, total) = await _uow.Conversations.GetMessagesAsync(conversationId, before, size);
-        return (items.Select(MapMessage).ToList(), total);
+            var (items, total) = await _uow.Conversations.GetMessagesAsync(conversationId, before, size);
+            return (items.Select(MapMessage).ToList(), total);
+        }
+        catch (KeyNotFoundException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"Cannot load messages for conversation {conversationId}. {ex.InnerException?.Message ?? ex.Message}");
+        }
     }
 
     public async Task<MessageResponse> SendMessageAsync(Guid userId, Guid conversationId, SendMessageRequest request)
