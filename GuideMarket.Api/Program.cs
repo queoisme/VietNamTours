@@ -88,8 +88,12 @@ builder.Services.AddScoped<IGuideApplicationService, GuideApplicationService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
-var smtpHost = builder.Configuration["Smtp:Host"];
-var sendGridKey = builder.Configuration["SendGrid:ApiKey"];
+// Read SMTP config: env var trực tiếp (Railway) hoặc từ config system
+var smtpHost = Environment.GetEnvironmentVariable("SMTP_HOST")
+               ?? Environment.GetEnvironmentVariable("Smtp__Host")
+               ?? builder.Configuration["Smtp:Host"];
+var sendGridKey = Environment.GetEnvironmentVariable("SENDGRID_API_KEY")
+                  ?? builder.Configuration["SendGrid:ApiKey"];
 var emailProvider = !string.IsNullOrWhiteSpace(smtpHost) ? "SMTP"
     : !string.IsNullOrWhiteSpace(sendGridKey) ? "SendGrid"
     : "Resend";

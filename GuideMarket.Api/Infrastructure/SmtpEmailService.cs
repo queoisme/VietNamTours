@@ -17,16 +17,32 @@ public class SmtpEmailService : IEmailService
 
     public SmtpEmailService(IConfiguration config)
     {
-        _host = config["Smtp:Host"] ?? throw new InvalidOperationException("Missing Smtp:Host");
+        _host = Environment.GetEnvironmentVariable("SMTP_HOST")
+                ?? Environment.GetEnvironmentVariable("Smtp__Host")
+                ?? config["Smtp:Host"]
+                ?? throw new InvalidOperationException("Missing Smtp:Host");
 
-        if (!int.TryParse(config["Smtp:Port"], out _port) || _port <= 0)
+        var portStr = Environment.GetEnvironmentVariable("SMTP_PORT")
+                      ?? Environment.GetEnvironmentVariable("Smtp__Port")
+                      ?? config["Smtp:Port"];
+        if (!int.TryParse(portStr, out _port) || _port <= 0)
             _port = 587;
 
-        _username = config["Smtp:Username"];
-        _password = config["Smtp:Password"];
+        _username = Environment.GetEnvironmentVariable("SMTP_USERNAME")
+                    ?? Environment.GetEnvironmentVariable("Smtp__Username")
+                    ?? config["Smtp:Username"];
+        _password = Environment.GetEnvironmentVariable("SMTP_PASSWORD")
+                    ?? Environment.GetEnvironmentVariable("Smtp__Password")
+                    ?? config["Smtp:Password"];
 
-        _fromEmail = config["Smtp:FromEmail"] ?? throw new InvalidOperationException("Missing Smtp:FromEmail");
-        _fromName = config["Smtp:FromName"] ?? "GuideMarket";
+        _fromEmail = Environment.GetEnvironmentVariable("SMTP_FROM_EMAIL")
+                     ?? Environment.GetEnvironmentVariable("Smtp__FromEmail")
+                     ?? config["Smtp:FromEmail"]
+                     ?? throw new InvalidOperationException("Missing Smtp:FromEmail");
+        _fromName = Environment.GetEnvironmentVariable("SMTP_FROM_NAME")
+                    ?? Environment.GetEnvironmentVariable("Smtp__FromName")
+                    ?? config["Smtp:FromName"]
+                    ?? "GuideMarket";
 
         // Default: STARTTLS for port 587, SSL for 465.
         // Can override with Smtp:Security = None|StartTls|Ssl|Auto
