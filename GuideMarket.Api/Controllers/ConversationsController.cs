@@ -56,6 +56,14 @@ public class ConversationsController : ControllerBase
         return StatusCode(201, ApiResponse<MessageResponse>.Ok(message));
     }
 
+    [HttpPost("by-booking/{bookingId:guid}")]
+    public async Task<IActionResult> GetOrCreateByBooking(Guid bookingId)
+    {
+        var userId = GetCurrentUserId();
+        var conv   = await _conversations.GetOrCreateByBookingAsync(userId, bookingId);
+        return Ok(ApiResponse<ConversationListItemResponse>.Ok(conv));
+    }
+
     [HttpPut("{id:guid}/read")]
     public async Task<IActionResult> MarkRead(Guid id)
     {

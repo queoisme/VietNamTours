@@ -29,6 +29,13 @@ public class ConversationRepository : IConversationRepository
             .FirstOrDefaultAsync(c => c.Id == conversationId
                 && (c.CustomerId == userId || c.GuideId == userId));
 
+    public Task<Conversation?> GetByBookingIdAsync(Guid bookingId) =>
+        _db.Conversations.AsNoTracking()
+            .Include(c => c.Booking).ThenInclude(b => b.Tour)
+            .Include(c => c.Customer)
+            .Include(c => c.Guide)
+            .FirstOrDefaultAsync(c => c.BookingId == bookingId);
+
     public async Task<(List<Conversation> Items, long Total)> GetByUserIdAsync(Guid userId, int page, int size)
     {
         var q = _db.Conversations.AsNoTracking()

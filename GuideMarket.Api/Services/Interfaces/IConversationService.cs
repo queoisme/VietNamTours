@@ -10,4 +10,5 @@ public interface IConversationService
     Task<(List<MessageResponse> Items, long Total)> GetMessagesAsync(Guid userId, Guid conversationId, DateTimeOffset? before, int size);
     Task<MessageResponse> SendMessageAsync(Guid userId, Guid conversationId, SendMessageRequest request);
     Task MarkReadAsync(Guid userId, Guid conversationId);
+    Task<ConversationListItemResponse> GetOrCreateByBookingAsync(Guid userId, Guid bookingId);
 }

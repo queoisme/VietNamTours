@@ -71,6 +71,37 @@ public class ConversationService : IConversationService
         await _uow.SaveChangesAsync();
     }
 
+    public async Task<ConversationListItemResponse> GetOrCreateByBookingAsync(Guid userId, Guid bookingId)
+    {
+        var booking = await _uow.Bookings.GetByIdWithDetailsAsync(bookingId)
+            ?? throw new KeyNotFoundException("Booking not found");
+
+        if (booking.CustomerId != userId && booking.GuideId != userId)
+            throw new ForbiddenAccessException("Access denied");
+
+        var existing = await _uow.Conversations.GetByBookingIdAsync(bookingId);
+        if (existing != null)
+            return MapList(existing, userId);
+
+        var conv = new Conversation
+        {
+            Id         = Guid.NewGuid(),
+            BookingId  = bookingId,
+            CustomerId = booking.CustomerId,
+            GuideId    = booking.GuideId,
+            CreatedAt  = DateTimeOffset.UtcNow,
+        };
+
+        await _uow.Conversations.AddAsync(conv);
+        await _uow.SaveChangesAsync();
+
+        conv.Booking   = booking;
+        conv.Customer  = booking.Customer;
+        conv.Guide     = booking.Guide;
+
+        return MapList(conv, userId);
+    }
+
     private static ConversationListItemResponse MapList(Conversation c, Guid userId)
     {
         var isCustomer   = c.CustomerId == userId;
