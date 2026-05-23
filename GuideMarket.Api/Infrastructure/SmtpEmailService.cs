@@ -14,6 +14,7 @@ public class SmtpEmailService : IEmailService
     private readonly string _fromEmail;
     private readonly string _fromName;
     private readonly SecureSocketOptions _secureSocketOptions;
+    private readonly int _timeoutMs;
 
     public SmtpEmailService(IConfiguration config)
     {
@@ -44,9 +45,18 @@ public class SmtpEmailService : IEmailService
                     ?? config["Smtp:FromName"]
                     ?? "GuideMarket";
 
+        var timeoutStr = Environment.GetEnvironmentVariable("SMTP_TIMEOUT_MS")
+                         ?? Environment.GetEnvironmentVariable("Smtp__TimeoutMs")
+                         ?? config["Smtp:TimeoutMs"];
+        if (!int.TryParse(timeoutStr, out _timeoutMs) || _timeoutMs < 1000)
+            _timeoutMs = 10000;
+
         // Default: STARTTLS for port 587, SSL for 465.
         // Can override with Smtp:Security = None|StartTls|Ssl|Auto
-        var security = (config["Smtp:Security"] ?? "Auto").Trim();
+        var security = (Environment.GetEnvironmentVariable("SMTP_SECURITY")
+                        ?? Environment.GetEnvironmentVariable("Smtp__Security")
+                        ?? config["Smtp:Security"]
+                        ?? "Auto").Trim();
         _secureSocketOptions = security.ToLowerInvariant() switch
         {
             "none" => SecureSocketOptions.None,
@@ -65,17 +75,27 @@ public class SmtpEmailService : IEmailService
         message.Body = new BodyBuilder { HtmlBody = htmlBody }.ToMessageBody();
 
         using var client = new SmtpClient();
-        await client.ConnectAsync(_host, _port, _secureSocketOptions);
+        client.Timeout = _timeoutMs;
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(_timeoutMs));
 
-        if (!string.IsNullOrWhiteSpace(_username))
+        try
         {
-            if (string.IsNullOrWhiteSpace(_password))
-                throw new InvalidOperationException("Missing Smtp:Password");
+            await client.ConnectAsync(_host, _port, _secureSocketOptions, cts.Token);
 
-            await client.AuthenticateAsync(_username, _password);
+            if (!string.IsNullOrWhiteSpace(_username))
+            {
+                if (string.IsNullOrWhiteSpace(_password))
+                    throw new InvalidOperationException("Missing Smtp:Password");
+
+                await client.AuthenticateAsync(_username, _password, cts.Token);
+            }
+
+            await client.SendAsync(message, cts.Token);
+            await client.DisconnectAsync(true, cts.Token);
         }
-
-        await client.SendAsync(message);
-        await client.DisconnectAsync(true);
+        catch (OperationCanceledException ex) when (cts.IsCancellationRequested)
+        {
+            throw new TimeoutException($"SMTP send timeout after {_timeoutMs} ms.", ex);
+        }
     }
 }

@@ -62,6 +62,7 @@ public class AuthService : IAuthService
         await _uow.SaveChangesAsync();
 
         // Gửi OTP — nếu email thất bại, không rollback đăng ký; user dùng resend-verify-email
+        var otpSent = true;
         try
         {
             await _otp.GenerateAndSendAsync(request.Email, OtpTypes.EmailRegistration);
@@ -69,10 +70,18 @@ public class AuthService : IAuthService
         }
         catch (Exception ex)
         {
+            otpSent = false;
             _logger.LogWarning(ex, "User {Email} registered but OTP email failed — user can resend", request.Email);
         }
 
-        return new RegisterResponse { Email = request.Email };
+        return new RegisterResponse
+        {
+            Email = request.Email,
+            OtpSent = otpSent,
+            Message = otpSent
+                ? "Register successful. Please check your email for the OTP."
+                : "Register successful but OTP delivery failed. Please use resend verification email."
+        };
     }
 
     // ----------------------------------------------------------------
