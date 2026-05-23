@@ -4,6 +4,7 @@ using GuideMarket.Api.Exceptions;
 using GuideMarket.Api.Models;
 using GuideMarket.Api.Repositories;
 using GuideMarket.Api.Services.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace GuideMarket.Api.Services;
 
@@ -92,8 +93,23 @@ public class ConversationService : IConversationService
             CreatedAt  = DateTimeOffset.UtcNow,
         };
 
-        await _uow.Conversations.AddAsync(conv);
-        await _uow.SaveChangesAsync();
+        try
+        {
+            await _uow.Conversations.AddAsync(conv);
+            await _uow.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex)
+        {
+            // Handle race condition or DB constraint mismatch more gracefully:
+            // if another request already created the conversation, return it.
+            var existingAfterError = await _uow.Conversations.GetByBookingIdAsync(bookingId);
+            if (existingAfterError != null)
+                return MapList(existingAfterError, userId);
+
+            throw new InvalidOperationException(
+                $"Cannot create conversation for booking {bookingId}. " +
+                $"{ex.InnerException?.Message ?? ex.Message}");
+        }
 
         conv.Booking   = booking;
         conv.Customer  = booking.Customer;
