@@ -13,11 +13,13 @@ namespace GuideMarket.Api.Controllers;
 public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
+    private readonly IAuthService _authService;
     private readonly SupabaseStorageClient _storage;
 
-    public UsersController(IUserService userService, SupabaseStorageClient storage)
+    public UsersController(IUserService userService, IAuthService authService, SupabaseStorageClient storage)
     {
         _userService = userService;
+        _authService = authService;
         _storage = storage;
     }
 
@@ -26,7 +28,19 @@ public class UsersController : ControllerBase
     {
         var userId = GetCurrentUserId();
         var user = await _userService.GetByIdAsync(userId);
-        if (user is null) return NotFound(ApiResponse<object>.Fail("User not found"));
+        if (user is null)
+        {
+            // OAuth user chưa có record (webhook chưa kịp fire) → tự tạo
+            try
+            {
+                var loginResult = await _authService.HandleSocialLoginAsync(userId);
+                return Ok(ApiResponse<UserResponse>.Ok(loginResult.User));
+            }
+            catch
+            {
+                return NotFound(ApiResponse<object>.Fail("User not found"));
+            }
+        }
         return Ok(ApiResponse<UserResponse>.Ok(user));
     }
 
