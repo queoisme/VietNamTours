@@ -217,8 +217,8 @@ if (swaggerEnabled)
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
 app.UseCors();
+app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
