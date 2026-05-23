@@ -38,6 +38,10 @@ public class ErrorHandlingMiddleware
         {
             await WriteError(context, HttpStatusCode.UnprocessableEntity, ex.Message);
         }
+        catch (TimeoutException ex)
+        {
+            await WriteError(context, HttpStatusCode.UnprocessableEntity, ex.Message);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unhandled exception");

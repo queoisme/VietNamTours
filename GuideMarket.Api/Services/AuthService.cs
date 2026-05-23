@@ -267,8 +267,16 @@ public class AuthService : IAuthService
         if (user is null || user.IsVerified)
             return; // Không reveal trạng thái
 
-        await _otp.GenerateAndSendAsync(email, OtpTypes.EmailRegistration);
-        _logger.LogInformation("Resent OTP to {Email}", email);
+        try
+        {
+            await _otp.GenerateAndSendAsync(email, OtpTypes.EmailRegistration);
+            _logger.LogInformation("Resent OTP to {Email}", email);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resend OTP to {Email}", email);
+            throw new InvalidOperationException($"OTP delivery failed: {ex.Message}");
+        }
     }
 
     // ----------------------------------------------------------------
