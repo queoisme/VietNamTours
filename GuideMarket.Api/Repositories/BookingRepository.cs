@@ -19,6 +19,7 @@ public class BookingRepository : IBookingRepository
             .Include(b => b.Tour)
             .Include(b => b.Customer)
             .Include(b => b.Guide)
+            .Include(b => b.Conversation)
             .FirstOrDefaultAsync(b => b.Id == id);
 
     public async Task<Booking?> FirstOrDefaultAsync(Expression<Func<Booking, bool>> predicate) =>

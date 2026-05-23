@@ -89,4 +89,5 @@ public class Booking
     public Tour Tour { get; set; } = default!;
     public User Customer { get; set; } = default!;
     public User Guide { get; set; } = default!;
+    public Conversation? Conversation { get; set; }
 }

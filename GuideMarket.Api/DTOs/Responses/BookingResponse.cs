@@ -45,6 +45,7 @@ public class BookingDetailResponse
     public DateTimeOffset? CompletedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+    public Guid? ConversationId { get; set; }
 }
 
 public class MomoPaymentResponse

@@ -412,5 +412,6 @@ public class BookingService : IBookingService
         CompletedAt       = b.CompletedAt,
         CreatedAt         = b.CreatedAt,
         UpdatedAt         = b.UpdatedAt,
+        ConversationId    = b.Conversation?.Id,
     };
 }
