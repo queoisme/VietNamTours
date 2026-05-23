@@ -88,12 +88,12 @@ builder.Services.AddScoped<IGuideApplicationService, GuideApplicationService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
-// Email provider selection:
-// - If Smtp:Host is set, use SMTP (e.g. Gmail SMTP).
-// - Else if SendGrid:ApiKey is set, use SendGrid.
-// - Else fallback to Resend.
 var smtpHost = builder.Configuration["Smtp:Host"];
 var sendGridKey = builder.Configuration["SendGrid:ApiKey"];
+var emailProvider = !string.IsNullOrWhiteSpace(smtpHost) ? "SMTP"
+    : !string.IsNullOrWhiteSpace(sendGridKey) ? "SendGrid"
+    : "Resend";
+Console.WriteLine($"[EMAIL] Provider selected: {emailProvider} | Smtp:Host={smtpHost ?? "(null)"}");
 builder.Services.AddScoped<IEmailService>(sp =>
 {
     if (!string.IsNullOrWhiteSpace(smtpHost))
