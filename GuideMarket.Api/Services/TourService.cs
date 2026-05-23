@@ -313,6 +313,7 @@ public class TourService : ITourService
         TotalBookings = t.TotalBookings,
         IsBoosted = t.IsBoosted,
         Status = t.Status.ToString(),
+        Images = t.Images,
         Guide = new TourGuideInfo
         {
             Id = t.Guide.Id,
