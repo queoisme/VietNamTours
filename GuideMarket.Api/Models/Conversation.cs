@@ -38,7 +38,7 @@ public class Conversation
     public DateTimeOffset CreatedAt { get; set; }
 
     public Booking? Booking { get; set; }
-    public Tour? Tour { get; set; };
+    public Tour? Tour { get; set; }
     public User Customer { get; set; } = default!;
     public User Guide { get; set; } = default!;
 }
