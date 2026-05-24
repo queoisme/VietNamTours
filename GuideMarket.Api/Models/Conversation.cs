@@ -14,7 +14,7 @@ public class Conversation
     public Guid? BookingId { get; set; }
 
     [Column("tour_id")]
-    public Guid TourId { get; set; }
+    public Guid? TourId { get; set; }
 
     [Column("customer_id")]
     public Guid CustomerId { get; set; }
@@ -38,7 +38,7 @@ public class Conversation
     public DateTimeOffset CreatedAt { get; set; }
 
     public Booking? Booking { get; set; }
-    public Tour Tour { get; set; } = default!;
+    public Tour? Tour { get; set; };
     public User Customer { get; set; } = default!;
     public User Guide { get; set; } = default!;
 }

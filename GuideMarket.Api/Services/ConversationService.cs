@@ -112,31 +112,21 @@ public class ConversationService : IConversationService
         if (booking.CustomerId != userId && booking.GuideId != userId)
             throw new ForbiddenAccessException("Access denied");
 
-        var existing = await _uow.Conversations.GetByBookingIdAsync(bookingId);
+        // One conversation per (customer, guide) pair — find it regardless of tour/booking
+        var existing = await _uow.Conversations.GetByCustomerAndGuideAsync(booking.CustomerId, booking.GuideId);
         if (existing != null)
-            return MapList(existing, userId);
-
-        // If a pre-booking conversation already exists for this customer+tour, link booking to it
-        var preBooking = await _uow.Conversations.GetByCustomerAndTourAsync(booking.CustomerId, booking.TourId);
-        if (preBooking != null)
         {
-            var tracked = await _uow.Conversations.FirstOrDefaultAsync(c => c.Id == preBooking.Id)
-                          ?? preBooking;
-            tracked.BookingId = bookingId;
-            _uow.Conversations.Update(tracked);
-            try
+            // Link booking if not already linked
+            if (existing.BookingId == null)
             {
-                await _uow.SaveChangesAsync();
+                var tracked = await _uow.Conversations.FirstOrDefaultAsync(c => c.Id == existing.Id) ?? existing;
+                tracked.BookingId = bookingId;
+                _uow.Conversations.Update(tracked);
+                try { await _uow.SaveChangesAsync(); } catch (DbUpdateException) { }
+                var refreshed = await _uow.Conversations.GetByCustomerAndGuideAsync(booking.CustomerId, booking.GuideId);
+                return MapList(refreshed!, userId);
             }
-            catch (DbUpdateException)
-            {
-                var existingAfterError = await _uow.Conversations.GetByBookingIdAsync(bookingId);
-                if (existingAfterError != null)
-                    return MapList(existingAfterError, userId);
-                throw;
-            }
-            var refreshed = await _uow.Conversations.GetByBookingIdAsync(bookingId);
-            return MapList(refreshed!, userId);
+            return MapList(existing, userId);
         }
 
         var conv = new Conversation
@@ -156,7 +146,7 @@ public class ConversationService : IConversationService
         }
         catch (DbUpdateException ex)
         {
-            var existingAfterError = await _uow.Conversations.GetByBookingIdAsync(bookingId);
+            var existingAfterError = await _uow.Conversations.GetByCustomerAndGuideAsync(booking.CustomerId, booking.GuideId);
             if (existingAfterError != null)
                 return MapList(existingAfterError, userId);
 
@@ -165,10 +155,10 @@ public class ConversationService : IConversationService
                 $"{ex.InnerException?.Message ?? ex.Message}");
         }
 
-        conv.Booking   = booking;
-        conv.Tour      = booking.Tour;
-        conv.Customer  = booking.Customer;
-        conv.Guide     = booking.Guide;
+        conv.Booking  = booking;
+        conv.Tour     = booking.Tour;
+        conv.Customer = booking.Customer;
+        conv.Guide    = booking.Guide;
 
         return MapList(conv, userId);
     }
@@ -183,7 +173,7 @@ public class ConversationService : IConversationService
             if (tour.GuideId == customerId)
                 throw new ForbiddenAccessException("Guide cannot start a chat with their own tour");
 
-            var existing = await _uow.Conversations.GetAnyByCustomerAndTourAsync(customerId, tourId);
+            var existing = await _uow.Conversations.GetByCustomerAndGuideAsync(customerId, tour.GuideId);
             if (existing != null)
                 return MapList(existing, customerId);
 
@@ -210,7 +200,7 @@ public class ConversationService : IConversationService
             }
             catch (DbUpdateException ex)
             {
-                var existingAfterError = await _uow.Conversations.GetAnyByCustomerAndTourAsync(customerId, tourId);
+                var existingAfterError = await _uow.Conversations.GetByCustomerAndGuideAsync(customerId, tour.GuideId);
                 if (existingAfterError != null)
                     return MapList(existingAfterError, customerId);
 

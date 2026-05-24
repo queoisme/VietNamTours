@@ -109,7 +109,7 @@ public class AppDbContext : DbContext
                 .HasForeignKey<Conversation>(c => c.BookingId)
                 .IsRequired(false).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(c => c.Tour).WithMany().HasForeignKey(c => c.TourId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .IsRequired(false).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(c => c.Customer).WithMany().HasForeignKey(c => c.CustomerId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(c => c.Guide).WithMany().HasForeignKey(c => c.GuideId).OnDelete(DeleteBehavior.Restrict);
         });
