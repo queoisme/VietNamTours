@@ -105,7 +105,8 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Conversation>(e =>
         {
             e.ToTable("conversations");
-            e.HasOne(c => c.Booking).WithMany().HasForeignKey(c => c.BookingId)
+            e.HasOne(c => c.Booking).WithOne(b => b.Conversation)
+                .HasForeignKey<Conversation>(c => c.BookingId)
                 .IsRequired(false).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(c => c.Tour).WithMany().HasForeignKey(c => c.TourId)
                 .OnDelete(DeleteBehavior.Cascade);
