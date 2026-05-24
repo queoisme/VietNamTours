@@ -65,7 +65,6 @@ public class ConversationsController : ControllerBase
     }
 
     [HttpPost("by-tour/{tourId:guid}")]
-    [Authorize(Roles = "customer")]
     public async Task<IActionResult> GetOrCreateByTour(Guid tourId)
     {
         var userId = GetCurrentUserId();
