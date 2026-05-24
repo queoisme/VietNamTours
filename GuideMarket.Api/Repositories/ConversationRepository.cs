@@ -23,7 +23,8 @@ public class ConversationRepository : IConversationRepository
 
     public Task<Conversation?> GetByIdForUserAsync(Guid conversationId, Guid userId) =>
         _db.Conversations.AsNoTracking()
-            .Include(c => c.Booking).ThenInclude(b => b.Tour)
+            .Include(c => c.Booking).ThenInclude(b => b!.Tour)
+            .Include(c => c.Tour)
             .Include(c => c.Customer)
             .Include(c => c.Guide)
             .FirstOrDefaultAsync(c => c.Id == conversationId
@@ -31,16 +32,27 @@ public class ConversationRepository : IConversationRepository
 
     public Task<Conversation?> GetByBookingIdAsync(Guid bookingId) =>
         _db.Conversations.AsNoTracking()
-            .Include(c => c.Booking).ThenInclude(b => b.Tour)
+            .Include(c => c.Booking).ThenInclude(b => b!.Tour)
+            .Include(c => c.Tour)
             .Include(c => c.Customer)
             .Include(c => c.Guide)
             .FirstOrDefaultAsync(c => c.BookingId == bookingId);
+
+    public Task<Conversation?> GetByCustomerAndTourAsync(Guid customerId, Guid tourId) =>
+        _db.Conversations.AsNoTracking()
+            .Include(c => c.Tour)
+            .Include(c => c.Customer)
+            .Include(c => c.Guide)
+            .FirstOrDefaultAsync(c => c.BookingId == null
+                && c.CustomerId == customerId
+                && c.TourId == tourId);
 
     public async Task<(List<Conversation> Items, long Total)> GetByUserIdAsync(Guid userId, int page, int size)
     {
         var q = _db.Conversations.AsNoTracking()
             .Where(c => c.CustomerId == userId || c.GuideId == userId)
-            .Include(c => c.Booking).ThenInclude(b => b.Tour)
+            .Include(c => c.Booking).ThenInclude(b => b!.Tour)
+            .Include(c => c.Tour)
             .Include(c => c.Customer)
             .Include(c => c.Guide)
             .OrderByDescending(c => c.LastMessageAt ?? c.CreatedAt);

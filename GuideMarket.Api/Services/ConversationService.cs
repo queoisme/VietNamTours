@@ -116,10 +116,34 @@ public class ConversationService : IConversationService
         if (existing != null)
             return MapList(existing, userId);
 
+        // If a pre-booking conversation already exists for this customer+tour, link booking to it
+        var preBooking = await _uow.Conversations.GetByCustomerAndTourAsync(booking.CustomerId, booking.TourId);
+        if (preBooking != null)
+        {
+            var tracked = await _uow.Conversations.FirstOrDefaultAsync(c => c.Id == preBooking.Id)
+                          ?? preBooking;
+            tracked.BookingId = bookingId;
+            _uow.Conversations.Update(tracked);
+            try
+            {
+                await _uow.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                var existingAfterError = await _uow.Conversations.GetByBookingIdAsync(bookingId);
+                if (existingAfterError != null)
+                    return MapList(existingAfterError, userId);
+                throw;
+            }
+            var refreshed = await _uow.Conversations.GetByBookingIdAsync(bookingId);
+            return MapList(refreshed!, userId);
+        }
+
         var conv = new Conversation
         {
             Id         = Guid.NewGuid(),
             BookingId  = bookingId,
+            TourId     = booking.TourId,
             CustomerId = booking.CustomerId,
             GuideId    = booking.GuideId,
             CreatedAt  = DateTimeOffset.UtcNow,
@@ -132,8 +156,6 @@ public class ConversationService : IConversationService
         }
         catch (DbUpdateException ex)
         {
-            // Handle race condition or DB constraint mismatch more gracefully:
-            // if another request already created the conversation, return it.
             var existingAfterError = await _uow.Conversations.GetByBookingIdAsync(bookingId);
             if (existingAfterError != null)
                 return MapList(existingAfterError, userId);
@@ -144,22 +166,75 @@ public class ConversationService : IConversationService
         }
 
         conv.Booking   = booking;
+        conv.Tour      = booking.Tour;
         conv.Customer  = booking.Customer;
         conv.Guide     = booking.Guide;
 
         return MapList(conv, userId);
     }
 
+    public async Task<ConversationListItemResponse> GetOrCreateByTourAsync(Guid customerId, Guid tourId)
+    {
+        var tour = await _uow.Tours.GetByIdAsync(tourId)
+            ?? throw new KeyNotFoundException("Tour not found");
+
+        if (tour.GuideId == customerId)
+            throw new ForbiddenAccessException("Guide cannot start a chat with their own tour");
+
+        var existing = await _uow.Conversations.GetByCustomerAndTourAsync(customerId, tourId);
+        if (existing != null)
+            return MapList(existing, customerId);
+
+        var customer = await _uow.Users.GetByIdAsync(customerId)
+            ?? throw new KeyNotFoundException("User not found");
+
+        var guide = await _uow.Users.GetByIdAsync(tour.GuideId)
+            ?? throw new KeyNotFoundException("Guide not found");
+
+        var conv = new Conversation
+        {
+            Id         = Guid.NewGuid(),
+            BookingId  = null,
+            TourId     = tourId,
+            CustomerId = customerId,
+            GuideId    = tour.GuideId,
+            CreatedAt  = DateTimeOffset.UtcNow,
+        };
+
+        try
+        {
+            await _uow.Conversations.AddAsync(conv);
+            await _uow.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex)
+        {
+            var existingAfterError = await _uow.Conversations.GetByCustomerAndTourAsync(customerId, tourId);
+            if (existingAfterError != null)
+                return MapList(existingAfterError, customerId);
+
+            throw new InvalidOperationException(
+                $"Cannot create conversation for tour {tourId}. " +
+                $"{ex.InnerException?.Message ?? ex.Message}");
+        }
+
+        conv.Tour     = tour;
+        conv.Customer = customer;
+        conv.Guide    = guide;
+
+        return MapList(conv, customerId);
+    }
+
     private static ConversationListItemResponse MapList(Conversation c, Guid userId)
     {
-        var isCustomer   = c.CustomerId == userId;
-        var otherUser    = isCustomer ? c.Guide : c.Customer;
-        var otherUserId  = otherUser?.Id ?? (isCustomer ? c.GuideId : c.CustomerId);
-        var unread       = isCustomer ? c.CustomerUnread : c.GuideUnread;
-        return new(c.Id, c.BookingId, otherUserId,
+        var isCustomer  = c.CustomerId == userId;
+        var otherUser   = isCustomer ? c.Guide : c.Customer;
+        var otherUserId = otherUser?.Id ?? (isCustomer ? c.GuideId : c.CustomerId);
+        var unread      = isCustomer ? c.CustomerUnread : c.GuideUnread;
+        var tourTitle   = c.Booking?.Tour?.Title ?? c.Tour?.Title ?? string.Empty;
+        return new(c.Id, c.BookingId, c.TourId, otherUserId,
             otherUser?.FullName ?? string.Empty,
             otherUser?.AvatarUrl,
-            c.Booking?.Tour?.Title ?? string.Empty,
+            tourTitle,
             unread, c.LastMessagePreview, c.LastMessageAt, c.CreatedAt);
     }
 

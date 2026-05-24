@@ -11,4 +11,5 @@ public interface IConversationService
     Task<MessageResponse> SendMessageAsync(Guid userId, Guid conversationId, SendMessageRequest request);
     Task MarkReadAsync(Guid userId, Guid conversationId);
     Task<ConversationListItemResponse> GetOrCreateByBookingAsync(Guid userId, Guid bookingId);
+    Task<ConversationListItemResponse> GetOrCreateByTourAsync(Guid customerId, Guid tourId);
 }

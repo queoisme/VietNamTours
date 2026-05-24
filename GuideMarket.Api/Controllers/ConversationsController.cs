@@ -64,6 +64,15 @@ public class ConversationsController : ControllerBase
         return Ok(ApiResponse<ConversationListItemResponse>.Ok(conv));
     }
 
+    [HttpPost("by-tour/{tourId:guid}")]
+    [Authorize(Roles = "customer")]
+    public async Task<IActionResult> GetOrCreateByTour(Guid tourId)
+    {
+        var userId = GetCurrentUserId();
+        var conv   = await _conversations.GetOrCreateByTourAsync(userId, tourId);
+        return StatusCode(201, ApiResponse<ConversationListItemResponse>.Ok(conv));
+    }
+
     [HttpPut("{id:guid}/read")]
     public async Task<IActionResult> MarkRead(Guid id)
     {

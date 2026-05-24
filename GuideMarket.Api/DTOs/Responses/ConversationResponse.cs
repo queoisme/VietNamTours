@@ -2,7 +2,8 @@ namespace GuideMarket.Api.DTOs.Responses;
 
 public record ConversationListItemResponse(
     Guid Id,
-    Guid BookingId,
+    Guid? BookingId,
+    Guid TourId,
     Guid OtherUserId,
     string OtherUserName,
     string? OtherUserAvatarUrl,
