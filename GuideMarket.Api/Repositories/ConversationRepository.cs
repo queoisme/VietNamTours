@@ -47,6 +47,15 @@ public class ConversationRepository : IConversationRepository
                 && c.CustomerId == customerId
                 && c.TourId == tourId);
 
+    public Task<Conversation?> GetAnyByCustomerAndTourAsync(Guid customerId, Guid tourId) =>
+        _db.Conversations.AsNoTracking()
+            .Include(c => c.Booking).ThenInclude(b => b!.Tour)
+            .Include(c => c.Tour)
+            .Include(c => c.Customer)
+            .Include(c => c.Guide)
+            .OrderByDescending(c => c.BookingId != null)
+            .FirstOrDefaultAsync(c => c.CustomerId == customerId && c.TourId == tourId);
+
     public async Task<(List<Conversation> Items, long Total)> GetByUserIdAsync(Guid userId, int page, int size)
     {
         var q = _db.Conversations.AsNoTracking()

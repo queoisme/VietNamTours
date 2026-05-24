@@ -183,7 +183,7 @@ public class ConversationService : IConversationService
             if (tour.GuideId == customerId)
                 throw new ForbiddenAccessException("Guide cannot start a chat with their own tour");
 
-            var existing = await _uow.Conversations.GetByCustomerAndTourAsync(customerId, tourId);
+            var existing = await _uow.Conversations.GetAnyByCustomerAndTourAsync(customerId, tourId);
             if (existing != null)
                 return MapList(existing, customerId);
 
@@ -210,7 +210,7 @@ public class ConversationService : IConversationService
             }
             catch (DbUpdateException ex)
             {
-                var existingAfterError = await _uow.Conversations.GetByCustomerAndTourAsync(customerId, tourId);
+                var existingAfterError = await _uow.Conversations.GetAnyByCustomerAndTourAsync(customerId, tourId);
                 if (existingAfterError != null)
                     return MapList(existingAfterError, customerId);
 
