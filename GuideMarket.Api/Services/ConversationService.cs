@@ -175,53 +175,64 @@ public class ConversationService : IConversationService
 
     public async Task<ConversationListItemResponse> GetOrCreateByTourAsync(Guid customerId, Guid tourId)
     {
-        var tour = await _uow.Tours.GetByIdAsync(tourId)
-            ?? throw new KeyNotFoundException("Tour not found");
-
-        if (tour.GuideId == customerId)
-            throw new ForbiddenAccessException("Guide cannot start a chat with their own tour");
-
-        var existing = await _uow.Conversations.GetByCustomerAndTourAsync(customerId, tourId);
-        if (existing != null)
-            return MapList(existing, customerId);
-
-        var customer = await _uow.Users.GetByIdAsync(customerId)
-            ?? throw new KeyNotFoundException("User not found");
-
-        var guide = await _uow.Users.GetByIdAsync(tour.GuideId)
-            ?? throw new KeyNotFoundException("Guide not found");
-
-        var conv = new Conversation
-        {
-            Id         = Guid.NewGuid(),
-            BookingId  = null,
-            TourId     = tourId,
-            CustomerId = customerId,
-            GuideId    = tour.GuideId,
-            CreatedAt  = DateTimeOffset.UtcNow,
-        };
-
         try
         {
-            await _uow.Conversations.AddAsync(conv);
-            await _uow.SaveChangesAsync();
+            var tour = await _uow.Tours.GetByIdAsync(tourId)
+                ?? throw new KeyNotFoundException("Tour not found");
+
+            if (tour.GuideId == customerId)
+                throw new ForbiddenAccessException("Guide cannot start a chat with their own tour");
+
+            var existing = await _uow.Conversations.GetByCustomerAndTourAsync(customerId, tourId);
+            if (existing != null)
+                return MapList(existing, customerId);
+
+            var customer = await _uow.Users.GetByIdAsync(customerId)
+                ?? throw new KeyNotFoundException("User not found");
+
+            var guide = await _uow.Users.GetByIdAsync(tour.GuideId)
+                ?? throw new KeyNotFoundException("Guide not found");
+
+            var conv = new Conversation
+            {
+                Id         = Guid.NewGuid(),
+                BookingId  = null,
+                TourId     = tourId,
+                CustomerId = customerId,
+                GuideId    = tour.GuideId,
+                CreatedAt  = DateTimeOffset.UtcNow,
+            };
+
+            try
+            {
+                await _uow.Conversations.AddAsync(conv);
+                await _uow.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex)
+            {
+                var existingAfterError = await _uow.Conversations.GetByCustomerAndTourAsync(customerId, tourId);
+                if (existingAfterError != null)
+                    return MapList(existingAfterError, customerId);
+
+                throw new InvalidOperationException(
+                    $"Cannot create conversation for tour {tourId}. " +
+                    $"{ex.InnerException?.Message ?? ex.Message}");
+            }
+
+            conv.Tour     = tour;
+            conv.Customer = customer;
+            conv.Guide    = guide;
+
+            return MapList(conv, customerId);
         }
-        catch (DbUpdateException ex)
+        catch (KeyNotFoundException) { throw; }
+        catch (ForbiddenAccessException) { throw; }
+        catch (InvalidOperationException) { throw; }
+        catch (Exception ex)
         {
-            var existingAfterError = await _uow.Conversations.GetByCustomerAndTourAsync(customerId, tourId);
-            if (existingAfterError != null)
-                return MapList(existingAfterError, customerId);
-
             throw new InvalidOperationException(
-                $"Cannot create conversation for tour {tourId}. " +
-                $"{ex.InnerException?.Message ?? ex.Message}");
+                $"[by-tour] {ex.GetType().Name}: {ex.InnerException?.Message ?? ex.Message}");
         }
-
-        conv.Tour     = tour;
-        conv.Customer = customer;
-        conv.Guide    = guide;
-
-        return MapList(conv, customerId);
     }
 
     private static ConversationListItemResponse MapList(Conversation c, Guid userId)
