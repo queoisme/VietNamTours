@@ -118,16 +118,26 @@ public class BookingService : IBookingService
         booking.ConfirmedAt = DateTimeOffset.UtcNow;
         booking.UpdatedAt   = DateTimeOffset.UtcNow;
 
-        var conversation = new Conversation
+        // Upsert conversation: link existing one or create new
+        var existing = await _uow.Conversations.FirstOrDefaultAsync(
+            c => c.CustomerId == booking.CustomerId && c.GuideId == booking.GuideId);
+        if (existing != null)
         {
-            Id         = Guid.NewGuid(),
-            BookingId  = booking.Id,
-            CustomerId = booking.CustomerId,
-            GuideId    = booking.GuideId,
-            CreatedAt  = DateTimeOffset.UtcNow,
-        };
+            existing.BookingId = booking.Id;
+            _uow.Conversations.Update(existing);
+        }
+        else
+        {
+            await _uow.Conversations.AddAsync(new Conversation
+            {
+                Id         = Guid.NewGuid(),
+                BookingId  = booking.Id,
+                CustomerId = booking.CustomerId,
+                GuideId    = booking.GuideId,
+                CreatedAt  = DateTimeOffset.UtcNow,
+            });
+        }
 
-        await _uow.Bookings.AddConversationAsync(conversation);
         _uow.Bookings.Update(booking);
         await _uow.SaveChangesAsync();
 
