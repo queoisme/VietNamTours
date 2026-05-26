@@ -15,5 +15,5 @@ public interface IBookingService
     Task<BookingDetailResponse> CancelAsync(Guid requestingUserId, Guid bookingId, CancelBookingRequest request);
     Task<(List<BookingListItemResponse> Items, long Total)> GetGuideBookingsAsync(
         Guid guideId, string? status, int page, int size);
-    Task HandlePaymentSuccessAsync(string txnId);
+    Task HandlePaymentSuccessAsync(string txnId, string paymentMethod = "momo");
 }

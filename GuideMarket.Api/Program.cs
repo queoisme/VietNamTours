@@ -73,6 +73,7 @@ builder.Services.AddScoped<IOtpRepository, OtpRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 builder.Services.AddSingleton<MomoClient>();
+builder.Services.AddSingleton<VnPayClient>();
 
 // HttpClient + Supabase clients
 builder.Services.AddHttpClient<SupabaseAuthClient>();

@@ -28,6 +28,11 @@ public class CreateMomoPaymentRequest
     public Guid BookingId { get; set; }
 }
 
+public class CreateVNPayPaymentRequest
+{
+    public Guid BookingId { get; set; }
+}
+
 public class CreateBookingRequestValidator : AbstractValidator<CreateBookingRequest>
 {
     public CreateBookingRequestValidator()

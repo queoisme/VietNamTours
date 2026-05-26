@@ -15,6 +15,7 @@ public class PaymentsController : ControllerBase
     private readonly IBoostService        _boostService;
     private readonly ISubscriptionService _subscriptionService;
     private readonly MomoClient           _momo;
+    private readonly VnPayClient          _vnpay;
     private readonly ILogger<PaymentsController> _logger;
 
     public PaymentsController(
@@ -22,12 +23,14 @@ public class PaymentsController : ControllerBase
         IBoostService boostService,
         ISubscriptionService subscriptionService,
         MomoClient momo,
+        VnPayClient vnpay,
         ILogger<PaymentsController> logger)
     {
         _bookingService      = bookingService;
         _boostService        = boostService;
         _subscriptionService = subscriptionService;
         _momo                = momo;
+        _vnpay               = vnpay;
         _logger              = logger;
     }
 
@@ -102,6 +105,102 @@ public class PaymentsController : ControllerBase
             : _momo.GetFrontendFailedUrl(resultCode);
 
         return Redirect(redirectUrl);
+    }
+
+    // --- VNPay ---
+
+    [HttpPost("vnpay/create")]
+    [Authorize]
+    public async Task<IActionResult> CreateVNPayPayment([FromBody] CreateVNPayPaymentRequest request)
+    {
+        var userId  = GetCurrentUserId();
+        var booking = await _bookingService.GetByIdAsync(userId, request.BookingId);
+
+        if (booking.CustomerId != userId)
+            return StatusCode(403, ApiResponse<object>.Fail("Not your booking"));
+        if (booking.Status != "pending" || booking.PaymentStatus != "unpaid")
+            return UnprocessableEntity(ApiResponse<object>.Fail("Booking is not in a payable state"));
+
+        var ip        = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+        var orderInfo = $"Thanh toan booking {request.BookingId}";
+        var payUrl    = _vnpay.CreatePaymentUrl(booking.PaymentTxnId!, booking.TotalPrice, orderInfo, ip);
+
+        return Ok(ApiResponse<VnPayPaymentResponse>.Ok(new VnPayPaymentResponse { PayUrl = payUrl }));
+    }
+
+    /// <summary>VNPay return URL — browser redirect sau khi thanh toán.</summary>
+    [HttpGet("vnpay/return")]
+    public async Task<IActionResult> VNPayReturn()
+    {
+        if (!_vnpay.VerifySignature(Request.Query))
+        {
+            _logger.LogWarning("VNPay return: invalid signature");
+            return Redirect(_vnpay.GetFrontendFailedUrl("97"));
+        }
+
+        var responseCode = _vnpay.GetResponseCode(Request.Query);
+        var txnRef       = _vnpay.GetTxnRef(Request.Query);
+
+        if (responseCode == "00")
+        {
+            try
+            {
+                if (txnRef.StartsWith("bt"))
+                    await _boostService.HandlePaymentSuccessAsync(txnRef, "vnpay");
+                else if (txnRef.StartsWith("sb"))
+                    await _subscriptionService.HandlePaymentSuccessAsync(txnRef, "vnpay");
+                else
+                    await _bookingService.HandlePaymentSuccessAsync(txnRef, "vnpay");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "VNPay return: error processing txnRef {TxnRef}", txnRef);
+                return Redirect(_vnpay.GetFrontendFailedUrl("99"));
+            }
+
+            return Redirect(_vnpay.GetFrontendSuccessUrl(txnRef));
+        }
+
+        _logger.LogInformation("VNPay return: payment not successful, responseCode {Code}, txnRef {TxnRef}",
+            responseCode, txnRef);
+        return Redirect(_vnpay.GetFrontendFailedUrl(responseCode));
+    }
+
+    /// <summary>VNPay IPN — server-to-server callback (cần public URL để nhận).</summary>
+    [HttpPost("vnpay/ipn")]
+    public async Task<IActionResult> VNPayIpn()
+    {
+        if (!_vnpay.VerifySignature(Request.Query))
+        {
+            _logger.LogWarning("VNPay IPN: invalid signature");
+            return Ok(new { RspCode = "97", Message = "Invalid signature" });
+        }
+
+        var responseCode = _vnpay.GetResponseCode(Request.Query);
+        var txnRef       = _vnpay.GetTxnRef(Request.Query);
+
+        if (responseCode != "00")
+        {
+            _logger.LogInformation("VNPay IPN: payment not successful, code {Code}", responseCode);
+            return Ok(new { RspCode = "00", Message = "Confirm Success" });
+        }
+
+        try
+        {
+            if (txnRef.StartsWith("bt"))
+                await _boostService.HandlePaymentSuccessAsync(txnRef, "vnpay");
+            else if (txnRef.StartsWith("sb"))
+                await _subscriptionService.HandlePaymentSuccessAsync(txnRef, "vnpay");
+            else
+                await _bookingService.HandlePaymentSuccessAsync(txnRef, "vnpay");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "VNPay IPN: error processing txnRef {TxnRef}", txnRef);
+            return Ok(new { RspCode = "99", Message = "Internal error" });
+        }
+
+        return Ok(new { RspCode = "00", Message = "Confirm Success" });
     }
 
     private Guid GetCurrentUserId()

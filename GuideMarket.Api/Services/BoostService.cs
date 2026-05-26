@@ -78,7 +78,7 @@ public class BoostService : IBoostService
         return (items.Select(Map).ToList(), total);
     }
 
-    public async Task HandlePaymentSuccessAsync(string txnRef)
+    public async Task HandlePaymentSuccessAsync(string txnRef, string paymentMethod = "momo")
     {
         var boost = await _uow.Boosts.GetByPaymentTxnIdAsync(txnRef);
         if (boost == null || boost.Status == BoostStatus.active) return;

@@ -321,12 +321,12 @@ public class BookingService : IBookingService
         return (bookings.Select(MapToListItem).ToList(), total);
     }
 
-    public async Task HandlePaymentSuccessAsync(string txnId)
+    public async Task HandlePaymentSuccessAsync(string txnId, string paymentMethod = "momo")
     {
         var booking = await _uow.Bookings.GetByPaymentTxnIdAsync(txnId);
         if (booking is null)
         {
-            _logger.LogWarning("MoMo IPN: booking not found for txnId {TxnId}", txnId);
+            _logger.LogWarning("Payment IPN: booking not found for txnId {TxnId}", txnId);
             return;
         }
         if (booking.PaymentStatus == PaymentStatus.paid)
@@ -334,7 +334,7 @@ public class BookingService : IBookingService
 
         booking.PaymentStatus = PaymentStatus.paid;
         booking.PaymentPaidAt = DateTimeOffset.UtcNow;
-        booking.PaymentMethod = "momo";
+        booking.PaymentMethod = paymentMethod;
         booking.UpdatedAt     = DateTimeOffset.UtcNow;
 
         var avail = await _uow.Tours.GetAvailabilityByDateAsync(booking.TourId, booking.TourDate);

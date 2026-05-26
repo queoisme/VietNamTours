@@ -99,7 +99,7 @@ public class SubscriptionService : ISubscriptionService
         return sub == null ? null : MapSub(sub);
     }
 
-    public async Task HandlePaymentSuccessAsync(string txnRef)
+    public async Task HandlePaymentSuccessAsync(string txnRef, string paymentMethod = "momo")
     {
         var sub = await _uow.Subscriptions.GetByPaymentTxnIdAsync(txnRef);
         if (sub == null || sub.Status == BoostStatus.active) return;

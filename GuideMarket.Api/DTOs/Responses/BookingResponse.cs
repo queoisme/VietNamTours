@@ -55,3 +55,8 @@ public class MomoPaymentResponse
     public string PayUrl    { get; set; } = default!;
     public string QrCodeUrl { get; set; } = default!;
 }
+
+public class VnPayPaymentResponse
+{
+    public string PayUrl { get; set; } = default!;
+}
