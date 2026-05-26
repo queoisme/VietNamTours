@@ -6,6 +6,7 @@ public class BookingListItemResponse
     public Guid TourId { get; set; }
     public string TourTitle { get; set; } = default!;
     public string? TourCoverImageUrl { get; set; }
+    public string[] TourImages { get; set; } = [];
     public DateOnly TourDate { get; set; }
     public short NumPeople { get; set; }
     public decimal TotalPrice { get; set; }
@@ -20,6 +21,7 @@ public class BookingDetailResponse
     public Guid TourId { get; set; }
     public string TourTitle { get; set; } = default!;
     public string? TourCoverImageUrl { get; set; }
+    public string[] TourImages { get; set; } = [];
     public Guid CustomerId { get; set; }
     public string CustomerName { get; set; } = default!;
     public Guid GuideId { get; set; }
