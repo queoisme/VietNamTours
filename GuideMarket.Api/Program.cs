@@ -68,6 +68,7 @@ builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
 builder.Services.AddScoped<IBoostRepository, BoostRepository>();
 builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<ISubscriptionPlanConfigRepository, SubscriptionPlanConfigRepository>();
+builder.Services.AddScoped<IBoostPlanConfigRepository, BoostPlanConfigRepository>();
 builder.Services.AddScoped<IWithdrawalRepository, WithdrawalRepository>();
 builder.Services.AddScoped<IOtpRepository, OtpRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();

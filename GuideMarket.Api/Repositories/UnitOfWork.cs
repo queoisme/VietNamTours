@@ -17,6 +17,7 @@ public class UnitOfWork : IUnitOfWork
     public IBoostRepository Boosts { get; }
     public ISubscriptionRepository Subscriptions { get; }
     public ISubscriptionPlanConfigRepository SubscriptionPlanConfigs { get; }
+    public IBoostPlanConfigRepository BoostPlanConfigs { get; }
     public IWithdrawalRepository Withdrawals { get; }
 
     public UnitOfWork(
@@ -33,6 +34,7 @@ public class UnitOfWork : IUnitOfWork
         IBoostRepository boosts,
         ISubscriptionRepository subscriptions,
         ISubscriptionPlanConfigRepository subscriptionPlanConfigs,
+        IBoostPlanConfigRepository boostPlanConfigs,
         IWithdrawalRepository withdrawals)
     {
         _db = db;
@@ -48,6 +50,7 @@ public class UnitOfWork : IUnitOfWork
         Boosts = boosts;
         Subscriptions = subscriptions;
         SubscriptionPlanConfigs = subscriptionPlanConfigs;
+        BoostPlanConfigs = boostPlanConfigs;
         Withdrawals = withdrawals;
     }
 

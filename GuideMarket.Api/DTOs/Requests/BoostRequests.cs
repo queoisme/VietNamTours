@@ -32,6 +32,27 @@ public class CreateSubscriptionRequestValidator : AbstractValidator<CreateSubscr
     }
 }
 
+public class UpdateBoostPlanRequest
+{
+    public decimal? Price { get; set; }
+    public int? Days { get; set; }
+    public string? Description { get; set; }
+    public bool? IsActive { get; set; }
+}
+
+public class UpdateBoostPlanRequestValidator : AbstractValidator<UpdateBoostPlanRequest>
+{
+    public UpdateBoostPlanRequestValidator()
+    {
+        When(x => x.Price.HasValue, () =>
+            RuleFor(x => x.Price!.Value).GreaterThan(0).WithMessage("Giá phải lớn hơn 0"));
+        When(x => x.Days.HasValue, () =>
+            RuleFor(x => x.Days!.Value).GreaterThan(0).WithMessage("Số ngày phải lớn hơn 0"));
+        When(x => x.Description is not null, () =>
+            RuleFor(x => x.Description!).MaximumLength(500));
+    }
+}
+
 public class UpdateSubscriptionPlanRequest
 {
     public decimal? Price { get; set; }

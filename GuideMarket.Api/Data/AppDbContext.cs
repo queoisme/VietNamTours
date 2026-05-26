@@ -21,6 +21,7 @@ public class AppDbContext : DbContext
     public DbSet<Boost> Boosts => Set<Boost>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
     public DbSet<SubscriptionPlanConfig> SubscriptionPlanConfigs => Set<SubscriptionPlanConfig>();
+    public DbSet<BoostPlanConfig> BoostPlanConfigs => Set<BoostPlanConfig>();
     public DbSet<Withdrawal> Withdrawals => Set<Withdrawal>();
     public DbSet<OtpVerification> OtpVerifications => Set<OtpVerification>();
 
@@ -168,6 +169,18 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<SubscriptionPlanConfig>(e =>
         {
             e.ToTable("subscription_plan_configs");
+            e.HasKey(p => p.Plan);
+            e.Property(p => p.Plan).HasColumnName("plan").HasMaxLength(20).ValueGeneratedNever();
+            e.Property(p => p.Price).HasColumnName("price");
+            e.Property(p => p.Days).HasColumnName("days");
+            e.Property(p => p.Description).HasColumnName("description");
+            e.Property(p => p.IsActive).HasColumnName("is_active");
+            e.Property(p => p.UpdatedAt).HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<BoostPlanConfig>(e =>
+        {
+            e.ToTable("boost_plan_configs");
             e.HasKey(p => p.Plan);
             e.Property(p => p.Plan).HasColumnName("plan").HasMaxLength(20).ValueGeneratedNever();
             e.Property(p => p.Price).HasColumnName("price");

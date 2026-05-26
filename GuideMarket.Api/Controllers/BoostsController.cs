@@ -3,6 +3,7 @@ using GuideMarket.Api.DTOs.Responses;
 using GuideMarket.Api.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace GuideMarket.Api.Controllers;
 
@@ -22,8 +23,20 @@ public class BoostsController : ControllerBase
     // ── Boosts ──────────────────────────────────────────────────────────────
 
     [HttpGet("boosts/plans")]
-    public IActionResult GetBoostPlans() =>
-        Ok(ApiResponse<List<BoostPlanInfo>>.Ok(_boosts.GetPlans()));
+    public async Task<IActionResult> GetBoostPlans()
+    {
+        var plans = await _boosts.GetPlansAsync();
+        return Ok(ApiResponse<List<BoostPlanInfo>>.Ok(plans));
+    }
+
+    [HttpPut("admin/boost-plans/{plan}")]
+    [Authorize]
+    public async Task<IActionResult> UpdateBoostPlan(string plan, [FromBody] UpdateBoostPlanRequest request)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _boosts.UpdatePlanAsync(userId, plan, request);
+        return Ok(ApiResponse<BoostPlanInfo>.Ok(result));
+    }
 
     [HttpPost("boosts")]
     [Authorize]

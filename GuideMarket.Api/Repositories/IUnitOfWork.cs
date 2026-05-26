@@ -14,6 +14,7 @@ public interface IUnitOfWork : IDisposable
     IBoostRepository Boosts { get; }
     ISubscriptionRepository Subscriptions { get; }
     ISubscriptionPlanConfigRepository SubscriptionPlanConfigs { get; }
+    IBoostPlanConfigRepository BoostPlanConfigs { get; }
     IWithdrawalRepository Withdrawals { get; }
     Task<int> SaveChangesAsync();
 }

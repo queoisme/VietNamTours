@@ -10,13 +10,6 @@ namespace GuideMarket.Api.Services;
 
 public class BoostService : IBoostService
 {
-    private static readonly Dictionary<BoostPlan, (decimal Price, int Days, string Desc)> Plans = new()
-    {
-        [BoostPlan.basic]    = (50_000,  1, "SPONSORED badge, homepage priority"),
-        [BoostPlan.standard] = (100_000, 3, "SPONSORED badge + color border"),
-        [BoostPlan.premium]  = (200_000, 7, "Gold border, shadow, top placement"),
-    };
-
     private readonly IUnitOfWork _uow;
     private readonly VnPayClient _vnpay;
 
@@ -26,9 +19,11 @@ public class BoostService : IBoostService
         _vnpay = vnpay;
     }
 
-    public List<BoostPlanInfo> GetPlans() =>
-        Plans.Select(kv => new BoostPlanInfo(kv.Key.ToString(), kv.Value.Price, kv.Value.Days, kv.Value.Desc))
-             .ToList();
+    public async Task<List<BoostPlanInfo>> GetPlansAsync()
+    {
+        var configs = await _uow.BoostPlanConfigs.GetAllActiveAsync();
+        return configs.Select(c => new BoostPlanInfo(c.Plan, c.Price, c.Days, c.Description)).ToList();
+    }
 
     public async Task<VnPayPaymentResponse> CreateAsync(Guid guideId, CreateBoostRequest request, string ipAddress)
     {
@@ -47,7 +42,9 @@ public class BoostService : IBoostService
         if (!Enum.TryParse<BoostPlan>(request.Plan, true, out var plan))
             throw new InvalidOperationException("Invalid boost plan");
 
-        var (price, days, _) = Plans[plan];
+        var config = await _uow.BoostPlanConfigs.GetByPlanAsync(request.Plan.ToLower())
+            ?? throw new InvalidOperationException("Boost plan config not found");
+        var (price, days) = (config.Price, config.Days);
         var txnRef = "bt" + Guid.NewGuid().ToString("N")[..13];
         var now    = DateTimeOffset.UtcNow;
 
@@ -58,7 +55,7 @@ public class BoostService : IBoostService
             GuideId      = guideId,
             Plan         = plan,
             PricePaid    = price,
-            DurationDays = (short)days,
+            DurationDays = (short)(int)days,
             StartsAt     = now,
             ExpiresAt    = now.AddDays(days),
             PaymentTxnId = txnRef,
@@ -95,6 +92,28 @@ public class BoostService : IBoostService
         }
 
         await _uow.SaveChangesAsync();
+    }
+
+    public async Task<BoostPlanInfo> UpdatePlanAsync(Guid adminId, string plan, UpdateBoostPlanRequest request)
+    {
+        var admin = await _uow.Users.GetByIdAsync(adminId)
+            ?? throw new KeyNotFoundException("User not found");
+        if (admin.Role != UserRole.admin)
+            throw new ForbiddenAccessException("Only admins can update boost plans");
+
+        var config = await _uow.BoostPlanConfigs.GetByPlanAsync(plan.ToLower())
+            ?? throw new KeyNotFoundException($"Boost plan '{plan}' không tồn tại");
+
+        if (request.Price.HasValue)          config.Price       = request.Price.Value;
+        if (request.Days.HasValue)           config.Days        = request.Days.Value;
+        if (request.Description is not null) config.Description = request.Description;
+        if (request.IsActive.HasValue)       config.IsActive    = request.IsActive.Value;
+        config.UpdatedAt = DateTimeOffset.UtcNow;
+
+        _uow.BoostPlanConfigs.Update(config);
+        await _uow.SaveChangesAsync();
+
+        return new BoostPlanInfo(config.Plan, config.Price, config.Days, config.Description);
     }
 
     private static BoostResponse Map(Boost b) => new(
