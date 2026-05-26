@@ -1,3 +1,4 @@
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -88,11 +89,12 @@ public class VnPayClient
 
     // --- Helpers ---
 
+    // VNPay yêu cầu URL-encode giá trị (spaces → +) khi tạo chuỗi hash
     private static string BuildRawData(SortedDictionary<string, string> parms) =>
-        string.Join("&", parms.Select(kv => $"{kv.Key}={kv.Value}"));
+        string.Join("&", parms.Select(kv => $"{kv.Key}={WebUtility.UrlEncode(kv.Value)}"));
 
     private static string BuildQueryString(SortedDictionary<string, string> parms) =>
-        string.Join("&", parms.Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value)}"));
+        string.Join("&", parms.Select(kv => $"{kv.Key}={WebUtility.UrlEncode(kv.Value)}"));
 
     private static string HmacSha512(string key, string data)
     {
