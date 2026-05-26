@@ -32,7 +32,7 @@ public class BoostsController : ControllerBase
         var userId   = GetCurrentUserId();
         var ip       = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
         var payment  = await _boosts.CreateAsync(userId, request, ip);
-        return StatusCode(201, ApiResponse<MomoPaymentResponse>.Ok(payment));
+        return StatusCode(201, ApiResponse<VnPayPaymentResponse>.Ok(payment));
     }
 
     [HttpGet("guides/me/boosts")]
@@ -64,7 +64,7 @@ public class BoostsController : ControllerBase
         var userId  = GetCurrentUserId();
         var ip      = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
         var payment = await _subscriptions.CreateAsync(userId, request, ip);
-        return StatusCode(201, ApiResponse<MomoPaymentResponse>.Ok(payment));
+        return StatusCode(201, ApiResponse<VnPayPaymentResponse>.Ok(payment));
     }
 
     [HttpGet("guides/me/subscription")]

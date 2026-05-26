@@ -11,12 +11,12 @@ namespace GuideMarket.Api.Services;
 public class SubscriptionService : ISubscriptionService
 {
     private readonly IUnitOfWork _uow;
-    private readonly MomoClient  _momo;
+    private readonly VnPayClient _vnpay;
 
-    public SubscriptionService(IUnitOfWork uow, MomoClient momo)
+    public SubscriptionService(IUnitOfWork uow, VnPayClient vnpay)
     {
-        _uow  = uow;
-        _momo = momo;
+        _uow   = uow;
+        _vnpay = vnpay;
     }
 
     // ----------------------------------------------------------------
@@ -58,7 +58,7 @@ public class SubscriptionService : ISubscriptionService
     // ----------------------------------------------------------------
     // Guide: mua subscription
     // ----------------------------------------------------------------
-    public async Task<MomoPaymentResponse> CreateAsync(Guid guideId, CreateSubscriptionRequest request, string ipAddress)
+    public async Task<VnPayPaymentResponse> CreateAsync(Guid guideId, CreateSubscriptionRequest request, string ipAddress)
     {
         var user = await _uow.Users.GetByIdAsync(guideId)
             ?? throw new KeyNotFoundException("User not found");
@@ -89,8 +89,8 @@ public class SubscriptionService : ISubscriptionService
         await _uow.Subscriptions.AddAsync(sub);
         await _uow.SaveChangesAsync();
 
-        var (payUrl, qrCodeUrl) = await _momo.CreatePaymentAsync(txnRef, config.Price, $"Subscription {plan}");
-        return new MomoPaymentResponse { PayUrl = payUrl, QrCodeUrl = qrCodeUrl };
+        var payUrl = _vnpay.CreatePaymentUrl(txnRef, config.Price, $"Subscription {plan}", ipAddress);
+        return new VnPayPaymentResponse { PayUrl = payUrl };
     }
 
     public async Task<SubscriptionResponse?> GetMySubscriptionAsync(Guid guideId)

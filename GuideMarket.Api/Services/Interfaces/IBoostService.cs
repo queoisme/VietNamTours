@@ -6,7 +6,7 @@ namespace GuideMarket.Api.Services.Interfaces;
 public interface IBoostService
 {
     List<BoostPlanInfo> GetPlans();
-    Task<MomoPaymentResponse> CreateAsync(Guid guideId, CreateBoostRequest request, string ipAddress);
+    Task<VnPayPaymentResponse> CreateAsync(Guid guideId, CreateBoostRequest request, string ipAddress);
     Task<(List<BoostResponse> Items, long Total)> GetMyBoostsAsync(Guid guideId, int page, int size);
     Task HandlePaymentSuccessAsync(string txnRef, string paymentMethod = "momo");
 }

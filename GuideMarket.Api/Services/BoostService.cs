@@ -18,19 +18,19 @@ public class BoostService : IBoostService
     };
 
     private readonly IUnitOfWork _uow;
-    private readonly MomoClient  _momo;
+    private readonly VnPayClient _vnpay;
 
-    public BoostService(IUnitOfWork uow, MomoClient momo)
+    public BoostService(IUnitOfWork uow, VnPayClient vnpay)
     {
-        _uow  = uow;
-        _momo = momo;
+        _uow   = uow;
+        _vnpay = vnpay;
     }
 
     public List<BoostPlanInfo> GetPlans() =>
         Plans.Select(kv => new BoostPlanInfo(kv.Key.ToString(), kv.Value.Price, kv.Value.Days, kv.Value.Desc))
              .ToList();
 
-    public async Task<MomoPaymentResponse> CreateAsync(Guid guideId, CreateBoostRequest request, string ipAddress)
+    public async Task<VnPayPaymentResponse> CreateAsync(Guid guideId, CreateBoostRequest request, string ipAddress)
     {
         var user = await _uow.Users.GetByIdAsync(guideId)
             ?? throw new KeyNotFoundException("User not found");
@@ -68,8 +68,8 @@ public class BoostService : IBoostService
         await _uow.Boosts.AddAsync(boost);
         await _uow.SaveChangesAsync();
 
-        var (payUrl, qrCodeUrl) = await _momo.CreatePaymentAsync(txnRef, price, $"Boost tour {tour.Title}");
-        return new MomoPaymentResponse { PayUrl = payUrl, QrCodeUrl = qrCodeUrl };
+        var payUrl = _vnpay.CreatePaymentUrl(txnRef, price, $"Boost tour {tour.Title}", ipAddress);
+        return new VnPayPaymentResponse { PayUrl = payUrl };
     }
 
     public async Task<(List<BoostResponse> Items, long Total)> GetMyBoostsAsync(Guid guideId, int page, int size)
