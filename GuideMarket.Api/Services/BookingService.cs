@@ -57,7 +57,7 @@ public class BookingService : IBookingService
                 throw new InvalidOperationException("Not enough slots available");
         }
 
-        var numDays    = isPrivate ? Math.Max((short)1, request.NumDays) : (short)1;
+        var numDays    = isPrivate ? (short)Math.Max(1, (int)Math.Ceiling((double)tour.DurationHours / 24.0)) : (short)1;
         var totalPrice = tour.PricePerPerson * request.NumPeople * numDays;
         var txnRef     = Guid.NewGuid().ToString("N")[..15];
 
