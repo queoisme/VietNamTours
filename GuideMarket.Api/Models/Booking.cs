@@ -5,7 +5,7 @@ namespace GuideMarket.Api.Models;
 
 public enum BookingStatus { pending, confirmed, completed, cancelled, rejected }
 public enum PaymentStatus { unpaid, paid, refunded }
-public enum CancellationBy { customer, guide, admin }
+public enum CancellationBy { customer, guide, admin, system }
 
 [Table("bookings")]
 public class Booking
