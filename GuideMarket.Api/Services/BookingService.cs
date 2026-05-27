@@ -397,6 +397,14 @@ public class BookingService : IBookingService
         if (booking.PaymentStatus == PaymentStatus.paid)
             return; // already processed — idempotent
 
+        if (booking.Status == BookingStatus.cancelled)
+        {
+            _logger.LogWarning(
+                "Payment IPN: booking {BookingId} is already cancelled, ignoring late payment for txnId {TxnId}",
+                booking.Id, txnId);
+            return;
+        }
+
         booking.PaymentStatus = PaymentStatus.paid;
         booking.PaymentPaidAt = DateTimeOffset.UtcNow;
         booking.PaymentMethod = paymentMethod;
