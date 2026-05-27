@@ -30,6 +30,7 @@ public class TourListItemResponse
     public int TotalReviews { get; set; }
     public int TotalBookings { get; set; }
     public bool IsBoosted { get; set; }
+    public DateTimeOffset? BoostExpiresAt { get; set; }
     public string Status { get; set; } = default!;
     public string[] Images { get; set; } = [];
     public TourGuideInfo Guide { get; set; } = default!;

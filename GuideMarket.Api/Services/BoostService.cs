@@ -81,15 +81,25 @@ public class BoostService : IBoostService
         if (boost == null || boost.Status == BoostStatus.active) return;
 
         boost.Status = BoostStatus.active;
-        _uow.Boosts.Update(boost);
 
         var tour = await _uow.Tours.GetByIdAsync(boost.TourId);
         if (tour != null)
         {
+            var now = DateTimeOffset.UtcNow;
+            var baseDate = (tour.IsBoosted && tour.BoostExpiresAt.HasValue && tour.BoostExpiresAt > now)
+                ? tour.BoostExpiresAt.Value
+                : now;
+            var newExpiry = baseDate.AddDays(boost.DurationDays);
+
             tour.IsBoosted      = true;
-            tour.BoostExpiresAt = boost.ExpiresAt;
+            tour.BoostExpiresAt = newExpiry;
+            boost.StartsAt      = now;
+            boost.ExpiresAt     = newExpiry;
+
             _uow.Tours.Update(tour);
         }
+
+        _uow.Boosts.Update(boost);
 
         await _uow.SaveChangesAsync();
     }

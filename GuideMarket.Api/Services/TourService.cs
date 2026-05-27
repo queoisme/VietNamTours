@@ -330,6 +330,7 @@ public class TourService : ITourService
         TotalReviews = t.TotalReviews,
         TotalBookings = t.TotalBookings,
         IsBoosted = t.IsBoosted,
+        BoostExpiresAt = t.BoostExpiresAt,
         Status = t.Status.ToString(),
         Images = t.Images,
         Guide = new TourGuideInfo
