@@ -24,6 +24,8 @@ public class AppDbContext : DbContext
     public DbSet<BoostPlanConfig> BoostPlanConfigs => Set<BoostPlanConfig>();
     public DbSet<Withdrawal> Withdrawals => Set<Withdrawal>();
     public DbSet<OtpVerification> OtpVerifications => Set<OtpVerification>();
+    public DbSet<SupportConversation> SupportConversations => Set<SupportConversation>();
+    public DbSet<SupportMessage> SupportMessages => Set<SupportMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -202,6 +204,19 @@ public class AppDbContext : DbContext
             e.HasIndex(o => new { o.Target, o.Type })
              .HasFilter("is_used = false")
              .HasDatabaseName("idx_otp_target");
+        });
+
+        modelBuilder.Entity<SupportConversation>(e =>
+        {
+            e.ToTable("support_conversations");
+            e.HasOne(c => c.User).WithMany().HasForeignKey(c => c.UserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SupportMessage>(e =>
+        {
+            e.ToTable("support_messages");
+            e.HasOne(m => m.SupportConversation).WithMany().HasForeignKey(m => m.SupportConversationId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(m => m.Sender).WithMany().HasForeignKey(m => m.SenderId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

@@ -72,6 +72,7 @@ builder.Services.AddScoped<ISubscriptionPlanConfigRepository, SubscriptionPlanCo
 builder.Services.AddScoped<IBoostPlanConfigRepository, BoostPlanConfigRepository>();
 builder.Services.AddScoped<IWithdrawalRepository, WithdrawalRepository>();
 builder.Services.AddScoped<IOtpRepository, OtpRepository>();
+builder.Services.AddScoped<ISupportRepository, SupportRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 builder.Services.AddSingleton<MomoClient>();
@@ -123,6 +124,7 @@ builder.Services.AddScoped<IConversationService, ConversationService>();
 builder.Services.AddScoped<IBoostService, BoostService>();
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IWithdrawalService, WithdrawalService>();
+builder.Services.AddScoped<ISupportChatService, SupportChatService>();
 
 // FluentValidation
 builder.Services.AddFluentValidationAutoValidation();
