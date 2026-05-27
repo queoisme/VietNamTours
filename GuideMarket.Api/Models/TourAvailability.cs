@@ -25,5 +25,8 @@ public class TourAvailability
     [Column("is_blocked")]
     public bool IsBlocked { get; set; }
 
+    [Column("blocked_by_booking_id")]
+    public Guid? BlockedByBookingId { get; set; }
+
     public Tour Tour { get; set; } = default!;
 }

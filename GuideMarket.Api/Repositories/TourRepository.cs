@@ -49,6 +49,9 @@ public class TourRepository : ITourRepository
         if (!string.IsNullOrWhiteSpace(p.Category) && Enum.TryParse<TourCategory>(p.Category, true, out var cat))
             query = query.Where(t => t.Category == cat);
 
+        if (!string.IsNullOrWhiteSpace(p.TourType) && Enum.TryParse<TourType>(p.TourType, true, out var tt))
+            query = query.Where(t => t.TourType == tt);
+
         if (p.MinPrice.HasValue) query = query.Where(t => t.PricePerPerson >= p.MinPrice.Value);
         if (p.MaxPrice.HasValue) query = query.Where(t => t.PricePerPerson <= p.MaxPrice.Value);
         if (p.MinRating.HasValue) query = query.Where(t => t.AvgRating >= p.MinRating.Value);
@@ -111,6 +114,11 @@ public class TourRepository : ITourRepository
     public async Task<TourAvailability?> GetAvailabilityByDateAsync(Guid tourId, DateOnly date) =>
         await _db.TourAvailabilities.AsNoTracking()
             .FirstOrDefaultAsync(a => a.TourId == tourId && a.AvailableDate == date);
+
+    public async Task<List<TourAvailability>> GetAvailabilitiesBlockedByBookingAsync(Guid bookingId) =>
+        await _db.TourAvailabilities
+            .Where(a => a.BlockedByBookingId == bookingId)
+            .ToListAsync();
 
     public async Task AddAvailabilityAsync(TourAvailability availability) =>
         await _db.TourAvailabilities.AddAsync(availability);

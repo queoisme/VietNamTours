@@ -41,6 +41,7 @@ var npgsqlBuilder = new NpgsqlDataSourceBuilder(efConnStr);
 npgsqlBuilder.MapEnum<UserRole>("user_role");
 npgsqlBuilder.MapEnum<TourCategory>("tour_category");
 npgsqlBuilder.MapEnum<TourStatus>("tour_status");
+npgsqlBuilder.MapEnum<TourType>("tour_type");
 npgsqlBuilder.MapEnum<VerificationStatus>("verification_status");
 npgsqlBuilder.MapEnum<SubscriptionPlan>("subscription_plan");
 npgsqlBuilder.MapEnum<ApplicationStatus>("application_status");

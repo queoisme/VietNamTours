@@ -5,6 +5,7 @@ namespace GuideMarket.Api.Models;
 
 public enum TourCategory { nature, culture, food, resort, adventure, other }
 public enum TourStatus { draft, active, inactive }
+public enum TourType { @private, group }
 
 [Table("tours")]
 public class Tour
@@ -69,6 +70,9 @@ public class Tour
 
     [Column("status")]
     public TourStatus Status { get; set; } = TourStatus.draft;
+
+    [Column("tour_type")]
+    public TourType TourType { get; set; } = TourType.group;
 
     [Column("avg_rating")]
     public decimal AvgRating { get; set; }

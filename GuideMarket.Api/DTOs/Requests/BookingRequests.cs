@@ -7,6 +7,7 @@ public class CreateBookingRequest
     public Guid TourId { get; set; }
     public DateOnly TourDate { get; set; }
     public short NumPeople { get; set; }
+    public short NumDays { get; set; } = 1;
     public string ContactName { get; set; } = default!;
     public string ContactPhone { get; set; } = default!;
     public string? ContactEmail { get; set; }
@@ -42,6 +43,7 @@ public class CreateBookingRequestValidator : AbstractValidator<CreateBookingRequ
             .GreaterThan(DateOnly.FromDateTime(DateTime.UtcNow))
             .WithMessage("Tour date must be in the future");
         RuleFor(x => x.NumPeople).GreaterThan((short)0);
+        RuleFor(x => x.NumDays).GreaterThan((short)0).LessThanOrEqualTo((short)30);
         RuleFor(x => x.ContactName).NotEmpty().MaximumLength(150);
         RuleFor(x => x.ContactPhone).NotEmpty().MaximumLength(20);
         RuleFor(x => x.ContactEmail)

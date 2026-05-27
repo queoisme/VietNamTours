@@ -33,6 +33,7 @@ public class AppDbContext : DbContext
         modelBuilder.HasPostgresEnum<UserRole>("public", "user_role");
         modelBuilder.HasPostgresEnum<TourCategory>("public", "tour_category");
         modelBuilder.HasPostgresEnum<TourStatus>("public", "tour_status");
+        modelBuilder.HasPostgresEnum<TourType>("public", "tour_type");
         modelBuilder.HasPostgresEnum<VerificationStatus>("public", "verification_status");
         modelBuilder.HasPostgresEnum<SubscriptionPlan>("public", "subscription_plan");
         modelBuilder.HasPostgresEnum<ApplicationStatus>("public", "application_status");
@@ -62,6 +63,11 @@ public class AppDbContext : DbContext
              .WithMany(t => t.Availabilities)
              .HasForeignKey(a => a.TourId)
              .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Booking>()
+             .WithMany()
+             .HasForeignKey(a => a.BlockedByBookingId)
+             .OnDelete(DeleteBehavior.SetNull)
+             .IsRequired(false);
         });
 
         modelBuilder.Entity<GuideProfile>(e =>

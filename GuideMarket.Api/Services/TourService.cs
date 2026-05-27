@@ -42,6 +42,9 @@ public class TourService : ITourService
         if (!Enum.TryParse<TourCategory>(request.Category, true, out var category))
             throw new InvalidOperationException($"Invalid category: {request.Category}");
 
+        if (!Enum.TryParse<TourType>(request.TourType, true, out var tourType))
+            throw new InvalidOperationException($"Invalid tour type: {request.TourType}");
+
         var slug = await GenerateUniqueSlugAsync(request.Title);
 
         var tour = new Tour
@@ -52,6 +55,7 @@ public class TourService : ITourService
             Slug = slug,
             Description = request.Description,
             Category = category,
+            TourType = tourType,
             LocationCity = request.LocationCity,
             LocationAddress = request.LocationAddress,
             Lat = request.Lat,
@@ -90,6 +94,12 @@ public class TourService : ITourService
             if (!Enum.TryParse<TourCategory>(request.Category, true, out var cat))
                 throw new InvalidOperationException($"Invalid category: {request.Category}");
             tour.Category = cat;
+        }
+        if (request.TourType is not null)
+        {
+            if (!Enum.TryParse<TourType>(request.TourType, true, out var tt))
+                throw new InvalidOperationException($"Invalid tour type: {request.TourType}");
+            tour.TourType = tt;
         }
         if (request.LocationCity is not null) tour.LocationCity = request.LocationCity;
         if (request.LocationAddress is not null) tour.LocationAddress = request.LocationAddress;
@@ -165,18 +175,23 @@ public class TourService : ITourService
 
     public async Task<TourAvailabilityResponse> CreateAvailabilityAsync(Guid userId, Guid tourId, CreateAvailabilityRequest request)
     {
-        await GetOwnedTourAsync(userId, tourId);
+        var tour = await GetOwnedTourAsync(userId, tourId);
 
         var existing = await _uow.Tours.GetAvailabilityByDateAsync(tourId, request.AvailableDate);
         if (existing is not null)
             throw new InvalidOperationException($"Availability for {request.AvailableDate} already exists");
+
+        // Private tours always have exactly 1 slot (one booking per date)
+        short maxSlots = tour.TourType == TourType.@private
+            ? (short)1
+            : (request.IsBlocked ? (short)0 : request.MaxSlots);
 
         var avail = new TourAvailability
         {
             Id = Guid.NewGuid(),
             TourId = tourId,
             AvailableDate = request.AvailableDate,
-            MaxSlots = request.IsBlocked ? (short)0 : request.MaxSlots,
+            MaxSlots = maxSlots,
             BookedSlots = 0,
             IsBlocked = request.IsBlocked,
         };
@@ -188,13 +203,15 @@ public class TourService : ITourService
 
     public async Task<TourAvailabilityResponse> UpdateAvailabilityAsync(Guid userId, Guid tourId, DateOnly date, UpdateAvailabilityRequest request)
     {
-        await GetOwnedTourAsync(userId, tourId);
+        var tour = await GetOwnedTourAsync(userId, tourId);
 
         var avail = await _uow.Tours.GetAvailabilityByDateAsync(tourId, date)
             ?? throw new KeyNotFoundException($"Availability for {date} not found");
 
         if (request.MaxSlots.HasValue)
         {
+            if (tour.TourType == TourType.@private)
+                throw new InvalidOperationException("Private tours must have exactly 1 slot and cannot be changed");
             if (request.MaxSlots.Value < avail.BookedSlots)
                 throw new InvalidOperationException("Cannot set max slots below already booked slots");
             avail.MaxSlots = request.MaxSlots.Value;
@@ -305,6 +322,7 @@ public class TourService : ITourService
         CoverImageUrl = t.CoverImageUrl,
         LocationCity = t.LocationCity,
         Category = t.Category.ToString(),
+        TourType = t.TourType.ToString(),
         PricePerPerson = t.PricePerPerson,
         DurationHours = t.DurationHours,
         MaxGroupSize = t.MaxGroupSize,
@@ -330,6 +348,7 @@ public class TourService : ITourService
         Slug = t.Slug,
         Description = t.Description,
         Category = t.Category.ToString(),
+        TourType = t.TourType.ToString(),
         LocationCity = t.LocationCity,
         LocationAddress = t.LocationAddress,
         Lat = t.Lat,

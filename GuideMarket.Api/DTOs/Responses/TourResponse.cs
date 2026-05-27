@@ -22,6 +22,7 @@ public class TourListItemResponse
     public string? CoverImageUrl { get; set; }
     public string LocationCity { get; set; } = default!;
     public string Category { get; set; } = default!;
+    public string TourType { get; set; } = default!;
     public decimal PricePerPerson { get; set; }
     public decimal DurationHours { get; set; }
     public short MaxGroupSize { get; set; }
@@ -42,6 +43,7 @@ public class TourResponse
     public string Slug { get; set; } = default!;
     public string Description { get; set; } = default!;
     public string Category { get; set; } = default!;
+    public string TourType { get; set; } = default!;
     public string LocationCity { get; set; } = default!;
     public string? LocationAddress { get; set; }
     public decimal? Lat { get; set; }

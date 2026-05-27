@@ -38,10 +38,27 @@ public class BookingService : IBookingService
             ?? throw new KeyNotFoundException("No availability found for the selected date");
         if (avail.IsBlocked)
             throw new InvalidOperationException("Selected date is not available");
-        if ((avail.MaxSlots - avail.BookedSlots) < request.NumPeople)
-            throw new InvalidOperationException("Not enough slots available");
 
-        var totalPrice = tour.PricePerPerson * request.NumPeople;
+        if (request.NumPeople > tour.MaxGroupSize)
+            throw new InvalidOperationException($"Number of people exceeds this tour's maximum group size of {tour.MaxGroupSize}");
+
+        var isPrivate = tour.TourType == TourType.@private;
+        if (isPrivate)
+        {
+            // Private tour: only 1 booking slot (max_slots=1); reserve immediately at creation
+            if (avail.BookedSlots >= avail.MaxSlots)
+                throw new InvalidOperationException("This private tour date is already booked");
+            avail.BookedSlots = (short)(avail.BookedSlots + 1);
+            _uow.Tours.UpdateAvailability(avail);
+        }
+        else
+        {
+            if ((avail.MaxSlots - avail.BookedSlots) < request.NumPeople)
+                throw new InvalidOperationException("Not enough slots available");
+        }
+
+        var numDays    = isPrivate ? Math.Max((short)1, request.NumDays) : (short)1;
+        var totalPrice = tour.PricePerPerson * request.NumPeople * numDays;
         var txnRef     = Guid.NewGuid().ToString("N")[..15];
 
         var booking = new Booking
@@ -65,6 +82,23 @@ public class BookingService : IBookingService
         };
 
         await _uow.Bookings.AddAsync(booking);
+
+        // Auto-block consecutive dates for multi-day private tours
+        if (isPrivate && numDays > 1)
+        {
+            for (int day = 1; day < numDays; day++)
+            {
+                var nextDate = request.TourDate.AddDays(day);
+                var nextAvail = await _uow.Tours.GetAvailabilityByDateAsync(request.TourId, nextDate);
+                if (nextAvail is not null && !nextAvail.IsBlocked)
+                {
+                    nextAvail.IsBlocked = true;
+                    nextAvail.BlockedByBookingId = booking.Id;
+                    _uow.Tours.UpdateAvailability(nextAvail);
+                }
+            }
+        }
+
         await _uow.SaveChangesAsync();
 
         var created = await _uow.Bookings.GetByIdWithDetailsAsync(booking.Id)
@@ -167,14 +201,25 @@ public class BookingService : IBookingService
         booking.RejectionReason  = request.Reason;
         booking.UpdatedAt        = DateTimeOffset.UtcNow;
 
+        var rejectTour = await _uow.Tours.GetByIdAsync(booking.TourId);
+        var rejectIsPrivate = rejectTour?.TourType == TourType.@private;
+
         if (booking.PaymentStatus == PaymentStatus.paid)
         {
             booking.RefundAmount  = booking.TotalPrice;
             booking.RefundPolicy  = "100%";
             booking.PaymentStatus = PaymentStatus.refunded;
 
-            await DecrementBookedSlotsAsync(booking.TourId, booking.TourDate, booking.NumPeople);
+            await DecrementBookedSlotsAsync(booking.TourId, booking.TourDate, booking.NumPeople, rejectIsPrivate);
         }
+        else if (rejectIsPrivate)
+        {
+            // Slot was reserved at booking creation; release it even though payment hasn't happened
+            await DecrementBookedSlotsAsync(booking.TourId, booking.TourDate, booking.NumPeople, isPrivate: true);
+        }
+
+        if (rejectIsPrivate)
+            await UnblockConsecutiveDatesAsync(booking.Id);
 
         _uow.Bookings.Update(booking);
         await _uow.SaveChangesAsync();
@@ -255,6 +300,9 @@ public class BookingService : IBookingService
         decimal refundAmount = 0;
         string? refundPolicy = null;
 
+        var cancelTour = await _uow.Tours.GetByIdAsync(booking.TourId);
+        var cancelIsPrivate = cancelTour?.TourType == TourType.@private;
+
         if (booking.PaymentStatus == PaymentStatus.paid)
         {
             if (booking.Status == BookingStatus.confirmed)
@@ -285,8 +333,16 @@ public class BookingService : IBookingService
                 refundPolicy = "100%";
             }
 
-            await DecrementBookedSlotsAsync(booking.TourId, booking.TourDate, booking.NumPeople);
+            await DecrementBookedSlotsAsync(booking.TourId, booking.TourDate, booking.NumPeople, cancelIsPrivate);
         }
+        else if (cancelIsPrivate)
+        {
+            // Slot was reserved at booking creation; release it even though payment hasn't happened
+            await DecrementBookedSlotsAsync(booking.TourId, booking.TourDate, booking.NumPeople, isPrivate: true);
+        }
+
+        if (cancelIsPrivate)
+            await UnblockConsecutiveDatesAsync(booking.Id);
 
         booking.Status             = BookingStatus.cancelled;
         booking.CancellationBy     = isAdmin ? Models.CancellationBy.admin : Models.CancellationBy.customer;
@@ -348,12 +404,16 @@ public class BookingService : IBookingService
         booking.UpdatedAt     = DateTimeOffset.UtcNow;
 
         var avail = await _uow.Tours.GetAvailabilityByDateAsync(booking.TourId, booking.TourDate);
-        if (avail is not null)
+        var paymentTour = await _uow.Tours.GetByIdAsync(booking.TourId);
+        var isPrivate = paymentTour?.TourType == TourType.@private;
+
+        // Private tours reserve the slot at booking creation; skip double-increment here
+        if (avail is not null && !isPrivate)
         {
             if (avail.BookedSlots + booking.NumPeople > avail.MaxSlots)
             {
                 _logger.LogWarning(
-                    "MoMo IPN: slot overflow for booking {BookingId}, tour {TourId}",
+                    "VNPay IPN: slot overflow for booking {BookingId}, tour {TourId}",
                     booking.Id, booking.TourId);
             }
             else
@@ -367,12 +427,25 @@ public class BookingService : IBookingService
         await _uow.SaveChangesAsync();
     }
 
-    private async Task DecrementBookedSlotsAsync(Guid tourId, DateOnly tourDate, short numPeople)
+    private async Task DecrementBookedSlotsAsync(Guid tourId, DateOnly tourDate, short numPeople, bool isPrivate = false)
     {
         var avail = await _uow.Tours.GetAvailabilityByDateAsync(tourId, tourDate);
         if (avail is not null)
         {
-            avail.BookedSlots = (short)Math.Max(0, avail.BookedSlots - numPeople);
+            // Private tours track "1 booking slot", not numPeople
+            var decrement = isPrivate ? (short)1 : numPeople;
+            avail.BookedSlots = (short)Math.Max(0, avail.BookedSlots - decrement);
+            _uow.Tours.UpdateAvailability(avail);
+        }
+    }
+
+    private async Task UnblockConsecutiveDatesAsync(Guid bookingId)
+    {
+        var blocked = await _uow.Tours.GetAvailabilitiesBlockedByBookingAsync(bookingId);
+        foreach (var avail in blocked)
+        {
+            avail.IsBlocked = false;
+            avail.BlockedByBookingId = null;
             _uow.Tours.UpdateAvailability(avail);
         }
     }

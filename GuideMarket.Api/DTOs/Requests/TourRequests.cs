@@ -14,6 +14,7 @@ public class CreateTourRequest
     public decimal PricePerPerson { get; set; }
     public decimal DurationHours { get; set; }
     public short MaxGroupSize { get; set; } = 10;
+    public string TourType { get; set; } = "group";
     public string[] Highlights { get; set; } = [];
     public string[] Included { get; set; } = [];
     public string[] Excluded { get; set; } = [];
@@ -34,6 +35,7 @@ public class UpdateTourRequest
     public decimal? PricePerPerson { get; set; }
     public decimal? DurationHours { get; set; }
     public short? MaxGroupSize { get; set; }
+    public string? TourType { get; set; }
     public string[]? Highlights { get; set; }
     public string[]? Included { get; set; }
     public string[]? Excluded { get; set; }
@@ -59,6 +61,7 @@ public class TourSearchParams
     public string? Q { get; set; }
     public string? City { get; set; }
     public string? Category { get; set; }
+    public string? TourType { get; set; }
     public decimal? MinPrice { get; set; }
     public decimal? MaxPrice { get; set; }
     public decimal? MinRating { get; set; }
@@ -87,6 +90,7 @@ public class UpdateAvailabilityRequest
 public class CreateTourRequestValidator : AbstractValidator<CreateTourRequest>
 {
     private static readonly string[] ValidCategories = ["nature", "culture", "food", "resort", "adventure", "other"];
+    private static readonly string[] ValidTourTypes  = ["private", "group"];
 
     public CreateTourRequestValidator()
     {
@@ -99,6 +103,8 @@ public class CreateTourRequestValidator : AbstractValidator<CreateTourRequest>
         RuleFor(x => x.DurationHours).GreaterThan(0);
         RuleFor(x => x.MaxGroupSize).GreaterThan((short)0);
         RuleFor(x => x.Images).Must(imgs => imgs.Length <= 10).WithMessage("Maximum 10 images allowed");
+        RuleFor(x => x.TourType).Must(t => ValidTourTypes.Contains(t.ToLower()))
+            .WithMessage("TourType must be one of: private, group");
     }
 }
 
