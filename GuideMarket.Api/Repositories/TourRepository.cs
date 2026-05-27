@@ -44,7 +44,7 @@ public class TourRepository : ITourRepository
             query = query.Where(t => t.Title.Contains(p.Q) || t.Description.Contains(p.Q));
 
         if (!string.IsNullOrWhiteSpace(p.City))
-            query = query.Where(t => t.LocationCity.ToLower().Contains(p.City.ToLower()));
+            query = query.Where(t => EF.Functions.ILike(t.LocationCity, $"%{p.City}%"));
 
         if (!string.IsNullOrWhiteSpace(p.Category) && Enum.TryParse<TourCategory>(p.Category, true, out var cat))
             query = query.Where(t => t.Category == cat);
@@ -114,6 +114,14 @@ public class TourRepository : ITourRepository
     public async Task<TourAvailability?> GetAvailabilityByDateAsync(Guid tourId, DateOnly date) =>
         await _db.TourAvailabilities.AsNoTracking()
             .FirstOrDefaultAsync(a => a.TourId == tourId && a.AvailableDate == date);
+
+    public async Task<List<TourAvailability>> GetAvailabilitiesByDateRangeAsync(
+        Guid tourId, DateOnly startDate, DateOnly endDate) =>
+        await _db.TourAvailabilities
+            .Where(a => a.TourId == tourId
+                     && a.AvailableDate >= startDate
+                     && a.AvailableDate <= endDate)
+            .ToListAsync();
 
     public async Task<List<TourAvailability>> GetAvailabilitiesBlockedByBookingAsync(Guid bookingId) =>
         await _db.TourAvailabilities

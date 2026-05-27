@@ -14,6 +14,7 @@ public interface ITourRepository : IRepository<Tour>
 
     Task<List<TourAvailability>> GetAvailabilitiesAsync(Guid tourId, bool upcomingOnly = false);
     Task<TourAvailability?> GetAvailabilityByDateAsync(Guid tourId, DateOnly date);
+    Task<List<TourAvailability>> GetAvailabilitiesByDateRangeAsync(Guid tourId, DateOnly startDate, DateOnly endDate);
     Task<List<TourAvailability>> GetAvailabilitiesBlockedByBookingAsync(Guid bookingId);
     Task AddAvailabilityAsync(TourAvailability availability);
     void UpdateAvailability(TourAvailability availability);

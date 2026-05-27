@@ -5,6 +5,7 @@ using GuideMarket.Api.Infrastructure;
 using GuideMarket.Api.Models;
 using GuideMarket.Api.Repositories;
 using GuideMarket.Api.Services.Interfaces;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace GuideMarket.Api.Services;
 
@@ -12,22 +13,29 @@ public class SubscriptionService : ISubscriptionService
 {
     private readonly IUnitOfWork _uow;
     private readonly VnPayClient _vnpay;
+    private readonly IMemoryCache _cache;
+    private const string PlansCacheKey = "subscription_plans";
 
-    public SubscriptionService(IUnitOfWork uow, VnPayClient vnpay)
+    public SubscriptionService(IUnitOfWork uow, VnPayClient vnpay, IMemoryCache cache)
     {
         _uow   = uow;
         _vnpay = vnpay;
+        _cache = cache;
     }
 
     // ----------------------------------------------------------------
-    // Public: lấy danh sách plans từ DB
+    // Public: lấy danh sách plans từ DB (cached 5 phút)
     // ----------------------------------------------------------------
     public async Task<List<SubscriptionPlanInfo>> GetPlansAsync()
     {
-        var configs = await _uow.SubscriptionPlanConfigs.GetAllActiveAsync();
-        return configs
-            .Select(c => new SubscriptionPlanInfo(c.Plan, c.Price, c.Days, c.Description))
-            .ToList();
+        return await _cache.GetOrCreateAsync(PlansCacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+            var configs = await _uow.SubscriptionPlanConfigs.GetAllActiveAsync();
+            return configs
+                .Select(c => new SubscriptionPlanInfo(c.Plan, c.Price, c.Days, c.Description))
+                .ToList();
+        }) ?? [];
     }
 
     // ----------------------------------------------------------------
@@ -52,6 +60,7 @@ public class SubscriptionService : ISubscriptionService
         _uow.SubscriptionPlanConfigs.Update(config);
         await _uow.SaveChangesAsync();
 
+        _cache.Remove(PlansCacheKey); // Invalidate on write
         return new SubscriptionPlanInfo(config.Plan, config.Price, config.Days, config.Description);
     }
 

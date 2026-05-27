@@ -19,33 +19,21 @@ public class ExpireSubscriptionJob
     {
         var now = DateTimeOffset.UtcNow;
 
-        var expiredProfiles = await _db.GuideProfiles
+        var profileCount = await _db.GuideProfiles
             .Where(g => g.SubscriptionPlan != SubscriptionPlan.free
                      && g.SubscriptionExpiresAt < now)
-            .ToListAsync();
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(g => g.SubscriptionPlan, SubscriptionPlan.free)
+                .SetProperty(g => g.SubscriptionExpiresAt, (DateTimeOffset?)null));
 
-        var expiredSubs = await _db.Subscriptions
+        var subCount = await _db.Subscriptions
             .Where(s => s.Status == BoostStatus.active && s.ExpiresAt < now)
-            .ToListAsync();
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(s => s.Status, BoostStatus.expired));
 
-        if (expiredProfiles.Count == 0 && expiredSubs.Count == 0) return;
-
-        foreach (var profile in expiredProfiles)
-        {
-            profile.SubscriptionPlan      = SubscriptionPlan.free;
-            profile.SubscriptionExpiresAt = null;
-        }
-
-        foreach (var sub in expiredSubs)
-            sub.Status = BoostStatus.expired;
-
-        if (expiredProfiles.Count > 0) _db.GuideProfiles.UpdateRange(expiredProfiles);
-        if (expiredSubs.Count > 0)     _db.Subscriptions.UpdateRange(expiredSubs);
-
-        await _db.SaveChangesAsync();
-
-        _logger.LogInformation(
-            "ExpireSubscriptionJob: downgraded {ProfileCount} guide(s), marked {SubCount} subscription(s) expired",
-            expiredProfiles.Count, expiredSubs.Count);
+        if (profileCount > 0 || subCount > 0)
+            _logger.LogInformation(
+                "ExpireSubscriptionJob: downgraded {ProfileCount} guide(s), marked {SubCount} subscription(s) expired",
+                profileCount, subCount);
     }
 }

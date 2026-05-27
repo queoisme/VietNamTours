@@ -19,32 +19,20 @@ public class ExpireBoostJob
     {
         var now = DateTimeOffset.UtcNow;
 
-        var expiredTours = await _db.Tours
+        var tourCount = await _db.Tours
             .Where(t => t.IsBoosted && t.BoostExpiresAt < now)
-            .ToListAsync();
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(t => t.IsBoosted, false)
+                .SetProperty(t => t.BoostExpiresAt, (DateTimeOffset?)null));
 
-        var expiredBoosts = await _db.Boosts
+        var boostCount = await _db.Boosts
             .Where(b => b.Status == BoostStatus.active && b.ExpiresAt < now)
-            .ToListAsync();
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(b => b.Status, BoostStatus.expired));
 
-        if (expiredTours.Count == 0 && expiredBoosts.Count == 0) return;
-
-        foreach (var tour in expiredTours)
-        {
-            tour.IsBoosted      = false;
-            tour.BoostExpiresAt = null;
-        }
-
-        foreach (var boost in expiredBoosts)
-            boost.Status = BoostStatus.expired;
-
-        if (expiredTours.Count > 0)  _db.Tours.UpdateRange(expiredTours);
-        if (expiredBoosts.Count > 0) _db.Boosts.UpdateRange(expiredBoosts);
-
-        await _db.SaveChangesAsync();
-
-        _logger.LogInformation(
-            "ExpireBoostJob: de-boosted {TourCount} tour(s), marked {BoostCount} boost record(s) expired",
-            expiredTours.Count, expiredBoosts.Count);
+        if (tourCount > 0 || boostCount > 0)
+            _logger.LogInformation(
+                "ExpireBoostJob: de-boosted {TourCount} tour(s), marked {BoostCount} boost record(s) expired",
+                tourCount, boostCount);
     }
 }

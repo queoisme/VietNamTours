@@ -7,6 +7,7 @@ using GuideMarket.Api.Models;
 using GuideMarket.Api.Repositories;
 using GuideMarket.Api.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace GuideMarket.Api.Services;
 
@@ -14,44 +15,75 @@ public class AdminService : IAdminService
 {
     private readonly AppDbContext _db;
     private readonly IUnitOfWork _uow;
+    private readonly IMemoryCache _cache;
+    private const string StatsCacheKey = "admin_stats";
 
-    public AdminService(AppDbContext db, IUnitOfWork uow)
+    public AdminService(AppDbContext db, IUnitOfWork uow, IMemoryCache cache)
     {
-        _db  = db;
-        _uow = uow;
+        _db    = db;
+        _uow   = uow;
+        _cache = cache;
     }
 
     public async Task<AdminStatsResponse> GetStatsAsync(Guid adminId)
     {
         await RequireAdminAsync(adminId);
 
-        var totalUsers      = await _db.Users.CountAsync(u => u.DeletedAt == null);
-        var totalGuides     = await _db.Users.CountAsync(u => u.Role == UserRole.guide && u.DeletedAt == null);
-        var totalCustomers  = await _db.Users.CountAsync(u => u.Role == UserRole.customer && u.DeletedAt == null);
-        var totalTours      = await _db.Tours.CountAsync(t => t.DeletedAt == null);
-        var activeTours     = await _db.Tours.CountAsync(t => t.Status == TourStatus.active && t.DeletedAt == null);
-        var totalBookings   = await _db.Bookings.CountAsync();
-        var pendingBookings = await _db.Bookings.CountAsync(b => b.Status == BookingStatus.pending);
-        var confirmedBookings = await _db.Bookings.CountAsync(b => b.Status == BookingStatus.confirmed);
-        var completedBookings = await _db.Bookings.CountAsync(b => b.Status == BookingStatus.completed);
-        var cancelledBookings = await _db.Bookings.CountAsync(b => b.Status == BookingStatus.cancelled);
-        var totalRevenue    = await _db.Bookings
-            .Where(b => b.Status == BookingStatus.completed)
-            .SumAsync(b => (decimal?)b.TotalPrice) ?? 0;
+        return await _cache.GetOrCreateAsync(StatsCacheKey, async entry =>
+        {
+            entry.SlidingExpiration = TimeSpan.FromMinutes(2);
+            return await FetchStatsAsync();
+        }) ?? await FetchStatsAsync();
+    }
+
+    private async Task<AdminStatsResponse> FetchStatsAsync()
+    {
+        // 3 queries with conditional aggregation instead of 11 separate round-trips
+        var userStats = await _db.Database
+            .SqlQuery<AdminUserStatsRaw>($"""
+                SELECT
+                  COUNT(*) FILTER (WHERE deleted_at IS NULL)                       AS total_users,
+                  COUNT(*) FILTER (WHERE role='guide'    AND deleted_at IS NULL)    AS total_guides,
+                  COUNT(*) FILTER (WHERE role='customer' AND deleted_at IS NULL)    AS total_customers
+                FROM users
+                """)
+            .FirstAsync();
+
+        var tourStats = await _db.Database
+            .SqlQuery<AdminTourStatsRaw>($"""
+                SELECT
+                  COUNT(*) FILTER (WHERE deleted_at IS NULL)                       AS total_tours,
+                  COUNT(*) FILTER (WHERE status='active' AND deleted_at IS NULL)   AS active_tours
+                FROM tours
+                """)
+            .FirstAsync();
+
+        var bookingStats = await _db.Database
+            .SqlQuery<AdminBookingStatsRaw>($"""
+                SELECT
+                  COUNT(*)                                                               AS total_bookings,
+                  COUNT(*) FILTER (WHERE status='pending')                              AS pending_bookings,
+                  COUNT(*) FILTER (WHERE status='confirmed')                            AS confirmed_bookings,
+                  COUNT(*) FILTER (WHERE status='completed')                            AS completed_bookings,
+                  COUNT(*) FILTER (WHERE status='cancelled')                            AS cancelled_bookings,
+                  COALESCE(SUM(total_price) FILTER (WHERE status='completed'), 0)       AS total_revenue
+                FROM bookings
+                """)
+            .FirstAsync();
 
         return new AdminStatsResponse
         {
-            TotalUsers        = totalUsers,
-            TotalGuides       = totalGuides,
-            TotalCustomers    = totalCustomers,
-            TotalTours        = totalTours,
-            ActiveTours       = activeTours,
-            TotalBookings     = totalBookings,
-            PendingBookings   = pendingBookings,
-            ConfirmedBookings = confirmedBookings,
-            CompletedBookings = completedBookings,
-            CancelledBookings = cancelledBookings,
-            TotalRevenue      = totalRevenue,
+            TotalUsers        = (int)userStats.TotalUsers,
+            TotalGuides       = (int)userStats.TotalGuides,
+            TotalCustomers    = (int)userStats.TotalCustomers,
+            TotalTours        = (int)tourStats.TotalTours,
+            ActiveTours       = (int)tourStats.ActiveTours,
+            TotalBookings     = (int)bookingStats.TotalBookings,
+            PendingBookings   = (int)bookingStats.PendingBookings,
+            ConfirmedBookings = (int)bookingStats.ConfirmedBookings,
+            CompletedBookings = (int)bookingStats.CompletedBookings,
+            CancelledBookings = (int)bookingStats.CancelledBookings,
+            TotalRevenue      = bookingStats.TotalRevenue,
         };
     }
 
@@ -164,18 +196,35 @@ public class AdminService : IAdminService
     {
         await RequireAdminAsync(adminId);
 
-        var query = _db.Bookings.AsNoTracking()
-            .Include(b => b.Tour)
-            .Include(b => b.Customer)
-            .Include(b => b.Guide)
-            .AsQueryable();
+        if (!from.HasValue && !to.HasValue && string.IsNullOrWhiteSpace(status))
+            throw new InvalidOperationException("Export requires at least one filter: 'from' date, 'to' date, or 'status'.");
+
+        if (from.HasValue && to.HasValue && (to.Value.DayNumber - from.Value.DayNumber) > 366)
+            throw new InvalidOperationException("Date range cannot exceed 366 days.");
+
+        var query = _db.Bookings.AsNoTracking().AsQueryable();
 
         if (from.HasValue)   query = query.Where(b => b.TourDate >= from.Value);
         if (to.HasValue)     query = query.Where(b => b.TourDate <= to.Value);
         if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, ignoreCase: true, out var bs))
             query = query.Where(b => b.Status == bs);
 
-        var bookings = await query.OrderByDescending(b => b.CreatedAt).ToListAsync();
+        var bookings = await query
+            .OrderByDescending(b => b.CreatedAt)
+            .Select(b => new
+            {
+                b.Id,
+                TourTitle    = b.Tour.Title,
+                CustomerName = b.Customer.FullName,
+                GuideName    = b.Guide.FullName,
+                b.TourDate,
+                b.NumPeople,
+                b.TotalPrice,
+                b.Status,
+                b.PaymentStatus,
+                b.CreatedAt,
+            })
+            .ToListAsync();
 
         var sb = new StringBuilder();
         sb.AppendLine("Id,TourTitle,CustomerName,GuideName,TourDate,NumPeople,TotalPrice,Status,PaymentStatus,CreatedAt");
@@ -183,9 +232,9 @@ public class AdminService : IAdminService
         {
             sb.AppendLine(string.Join(",",
                 b.Id,
-                Csv(b.Tour.Title),
-                Csv(b.Customer.FullName),
-                Csv(b.Guide.FullName),
+                Csv(b.TourTitle),
+                Csv(b.CustomerName),
+                Csv(b.GuideName),
                 b.TourDate.ToString("yyyy-MM-dd"),
                 b.NumPeople,
                 b.TotalPrice,
@@ -239,4 +288,10 @@ public class AdminService : IAdminService
         GuideName      = t.Guide.FullName,
         CreatedAt      = t.CreatedAt,
     };
+
+    private record AdminUserStatsRaw(long TotalUsers, long TotalGuides, long TotalCustomers);
+    private record AdminTourStatsRaw(long TotalTours, long ActiveTours);
+    private record AdminBookingStatsRaw(
+        long TotalBookings, long PendingBookings, long ConfirmedBookings,
+        long CompletedBookings, long CancelledBookings, decimal TotalRevenue);
 }

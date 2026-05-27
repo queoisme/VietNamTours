@@ -22,7 +22,7 @@ public class BoostRepository : IBoostRepository
     public void Delete(Boost entity) => _db.Boosts.Remove(entity);
 
     public Task<Boost?> GetByPaymentTxnIdAsync(string txnId) =>
-        _db.Boosts.FirstOrDefaultAsync(b => b.PaymentTxnId == txnId);
+        _db.Boosts.AsNoTracking().FirstOrDefaultAsync(b => b.PaymentTxnId == txnId);
 
     public async Task<(List<Boost> Items, long Total)> GetByGuideIdAsync(Guid guideId, int page, int size)
     {

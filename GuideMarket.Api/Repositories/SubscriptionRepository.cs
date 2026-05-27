@@ -22,7 +22,7 @@ public class SubscriptionRepository : ISubscriptionRepository
     public void Delete(Subscription entity) => _db.Subscriptions.Remove(entity);
 
     public Task<Subscription?> GetByPaymentTxnIdAsync(string txnId) =>
-        _db.Subscriptions.FirstOrDefaultAsync(s => s.PaymentTxnId == txnId);
+        _db.Subscriptions.AsNoTracking().FirstOrDefaultAsync(s => s.PaymentTxnId == txnId);
 
     public Task<Subscription?> GetActiveByGuideIdAsync(Guid guideId) =>
         _db.Subscriptions.AsNoTracking()

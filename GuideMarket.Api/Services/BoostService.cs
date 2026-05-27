@@ -5,6 +5,7 @@ using GuideMarket.Api.Infrastructure;
 using GuideMarket.Api.Models;
 using GuideMarket.Api.Repositories;
 using GuideMarket.Api.Services.Interfaces;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace GuideMarket.Api.Services;
 
@@ -12,17 +13,24 @@ public class BoostService : IBoostService
 {
     private readonly IUnitOfWork _uow;
     private readonly VnPayClient _vnpay;
+    private readonly IMemoryCache _cache;
+    private const string PlansCacheKey = "boost_plans";
 
-    public BoostService(IUnitOfWork uow, VnPayClient vnpay)
+    public BoostService(IUnitOfWork uow, VnPayClient vnpay, IMemoryCache cache)
     {
         _uow   = uow;
         _vnpay = vnpay;
+        _cache = cache;
     }
 
     public async Task<List<BoostPlanInfo>> GetPlansAsync()
     {
-        var configs = await _uow.BoostPlanConfigs.GetAllActiveAsync();
-        return configs.Select(c => new BoostPlanInfo(c.Plan, c.Price, c.Days, c.Description)).ToList();
+        return await _cache.GetOrCreateAsync(PlansCacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+            var configs = await _uow.BoostPlanConfigs.GetAllActiveAsync();
+            return configs.Select(c => new BoostPlanInfo(c.Plan, c.Price, c.Days, c.Description)).ToList();
+        }) ?? [];
     }
 
     public async Task<VnPayPaymentResponse> CreateAsync(Guid guideId, CreateBoostRequest request, string ipAddress)
@@ -123,6 +131,7 @@ public class BoostService : IBoostService
         _uow.BoostPlanConfigs.Update(config);
         await _uow.SaveChangesAsync();
 
+        _cache.Remove(PlansCacheKey); // Invalidate on write
         return new BoostPlanInfo(config.Plan, config.Price, config.Days, config.Description);
     }
 

@@ -34,13 +34,19 @@ public class BoostExpiringWarningJob
                      && b.ExpiresAt <= windowEnd)
             .ToListAsync();
 
+        if (boosts.Count == 0) return;
+
+        // Batch-fetch all already-sent IDs to avoid N+1 per boost
+        var boostIds = boosts.Select(b => b.Id).ToList();
+        var alreadySentIds = (await _db.Notifications
+            .Where(n => boostIds.Contains(n.EntityId!.Value) && n.Type == "boost_expiring")
+            .Select(n => n.EntityId!.Value)
+            .ToListAsync()).ToHashSet();
+
         var count = 0;
         foreach (var boost in boosts)
         {
-            // Không gửi lại nếu đã có notification cho boost này
-            var alreadySent = await _db.Notifications
-                .AnyAsync(n => n.EntityId == boost.Id && n.Type == "boost_expiring");
-            if (alreadySent) continue;
+            if (alreadySentIds.Contains(boost.Id)) continue;
 
             var title = boost.Tour?.Title ?? "Tour";
             var expiresDisplay = boost.ExpiresAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm");

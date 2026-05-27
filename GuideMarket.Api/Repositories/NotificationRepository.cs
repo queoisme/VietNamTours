@@ -43,6 +43,7 @@ public class NotificationRepository : INotificationRepository
 
     public async Task<Notification?> GetByIdForUserAsync(Guid userId, Guid notificationId) =>
         await _db.Notifications
+            .AsNoTracking()
             .FirstOrDefaultAsync(n => n.Id == notificationId && n.UserId == userId);
 
     public async Task MarkAllReadAsync(Guid userId) =>

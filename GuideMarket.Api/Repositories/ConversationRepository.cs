@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using GuideMarket.Api.Data;
+using GuideMarket.Api.DTOs.Responses;
 using GuideMarket.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -66,6 +67,37 @@ public class ConversationRepository : IConversationRepository
 
         var total = await q.LongCountAsync();
         var items = await q.Skip((page - 1) * size).Take(size).ToListAsync();
+        return (items, total);
+    }
+
+    public async Task<(List<ConversationListItemResponse> Items, long Total)> GetProjectedListByUserIdAsync(
+        Guid userId, int page, int size)
+    {
+        var q = _db.Conversations.AsNoTracking()
+            .Where(c => c.CustomerId == userId || c.GuideId == userId)
+            .OrderByDescending(c => c.LastMessageAt ?? c.CreatedAt);
+
+        var total       = await q.LongCountAsync();
+        var clampedSize = Math.Clamp(size, 1, 100);
+        var skip        = (Math.Max(page, 1) - 1) * clampedSize;
+
+        var items = await q
+            .Skip(skip).Take(clampedSize)
+            .Select(c => new ConversationListItemResponse(
+                c.Id,
+                c.BookingId,
+                c.TourId,
+                c.CustomerId == userId ? c.GuideId  : c.CustomerId,
+                c.CustomerId == userId ? c.Guide.FullName    : c.Customer.FullName,
+                c.CustomerId == userId ? c.Guide.AvatarUrl   : c.Customer.AvatarUrl,
+                c.Booking != null ? c.Booking.Tour.Title
+                    : c.Tour != null ? c.Tour.Title : string.Empty,
+                c.CustomerId == userId ? c.CustomerUnread : c.GuideUnread,
+                c.LastMessagePreview,
+                c.LastMessageAt,
+                c.CreatedAt))
+            .ToListAsync();
+
         return (items, total);
     }
 

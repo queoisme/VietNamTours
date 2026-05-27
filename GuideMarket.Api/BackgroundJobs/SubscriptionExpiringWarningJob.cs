@@ -33,12 +33,19 @@ public class SubscriptionExpiringWarningJob
                      && s.ExpiresAt <= windowEnd)
             .ToListAsync();
 
+        if (subs.Count == 0) return;
+
+        // Batch-fetch all already-sent IDs to avoid N+1 per subscription
+        var subIds = subs.Select(s => s.Id).ToList();
+        var alreadySentIds = (await _db.Notifications
+            .Where(n => subIds.Contains(n.EntityId!.Value) && n.Type == "subscription_expiring")
+            .Select(n => n.EntityId!.Value)
+            .ToListAsync()).ToHashSet();
+
         var count = 0;
         foreach (var sub in subs)
         {
-            var alreadySent = await _db.Notifications
-                .AnyAsync(n => n.EntityId == sub.Id && n.Type == "subscription_expiring");
-            if (alreadySent) continue;
+            if (alreadySentIds.Contains(sub.Id)) continue;
 
             var planName      = sub.Plan == SubscriptionPlan.pro ? "Pro" : "Premium";
             var expiresDisplay = sub.ExpiresAt.ToLocalTime().ToString("dd/MM/yyyy");

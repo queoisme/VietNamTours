@@ -1,3 +1,5 @@
+using System.IO.Compression;
+using System.Threading.RateLimiting;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using GuideMarket.Api.Data;
@@ -9,8 +11,10 @@ using GuideMarket.Api.Services;
 using GuideMarket.Api.Services.Interfaces;
 using GuideMarket.Api.BackgroundJobs;
 using Hangfire;
+using Hangfire.Dashboard;
 using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
@@ -130,6 +134,47 @@ builder.Services.AddScoped<ISupportChatService, SupportChatService>();
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
+// In-memory cache (plan configs, admin stats)
+builder.Services.AddMemoryCache();
+
+// Response compression — Brotli preferred, fallback to gzip
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(["application/json", "text/csv"]);
+});
+builder.Services.Configure<BrotliCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
+builder.Services.Configure<GzipCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
+
+// Rate limiting: 100 req/min/IP for anonymous, 300 req/min/user for authenticated
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (ctx, token) =>
+    {
+        ctx.HttpContext.Response.ContentType = "application/json";
+        await ctx.HttpContext.Response.WriteAsync(
+            """{"success":false,"data":null,"message":"Too many requests. Please slow down."}""", token);
+    };
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        var userId = context.User?.FindFirst("sub")?.Value;
+        var key    = !string.IsNullOrEmpty(userId) ? userId
+                   : context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var limit  = !string.IsNullOrEmpty(userId) ? 300 : 100;
+        return RateLimitPartition.GetSlidingWindowLimiter(key, _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit          = limit,
+            Window               = TimeSpan.FromMinutes(1),
+            SegmentsPerWindow    = 6,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            QueueLimit           = 0,
+        });
+    });
+});
+
 // JWT Authentication (Supabase)
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -218,6 +263,7 @@ builder.Services.AddSwaggerGen(c =>
 var app = builder.Build();
 
 // Middleware pipeline
+app.UseResponseCompression(); // Must be first to wrap all downstream responses
 app.UseMiddleware<ErrorHandlingMiddleware>();
 app.UseSerilogRequestLogging();
 
@@ -236,8 +282,12 @@ app.UseCors();
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
-app.UseHangfireDashboard("/hangfire");
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = [new LocalRequestsOnlyAuthorizationFilter()]
+});
 
 var recurringJobs = app.Services.GetRequiredService<IRecurringJobManager>();
 recurringJobs.AddOrUpdate<ExpireBoostJob>("expire-boosts", x => x.ExecuteAsync(), Cron.Hourly);

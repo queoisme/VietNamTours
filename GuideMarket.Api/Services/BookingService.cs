@@ -83,19 +83,18 @@ public class BookingService : IBookingService
 
         await _uow.Bookings.AddAsync(booking);
 
-        // Auto-block consecutive dates for multi-day private tours
+        // Auto-block consecutive dates for multi-day private tours (single batch query)
         if (isPrivate && numDays > 1)
         {
-            for (int day = 1; day < numDays; day++)
+            var endDate = request.TourDate.AddDays(numDays - 1);
+            var subsequentAvails = await _uow.Tours.GetAvailabilitiesByDateRangeAsync(
+                request.TourId, request.TourDate.AddDays(1), endDate);
+
+            foreach (var nextAvail in subsequentAvails.Where(a => !a.IsBlocked))
             {
-                var nextDate = request.TourDate.AddDays(day);
-                var nextAvail = await _uow.Tours.GetAvailabilityByDateAsync(request.TourId, nextDate);
-                if (nextAvail is not null && !nextAvail.IsBlocked)
-                {
-                    nextAvail.IsBlocked = true;
-                    nextAvail.BlockedByBookingId = booking.Id;
-                    _uow.Tours.UpdateAvailability(nextAvail);
-                }
+                nextAvail.IsBlocked = true;
+                nextAvail.BlockedByBookingId = booking.Id;
+                _uow.Tours.UpdateAvailability(nextAvail);
             }
         }
 

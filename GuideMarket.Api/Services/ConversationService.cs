@@ -19,8 +19,7 @@ public class ConversationService : IConversationService
     {
         try
         {
-            var (items, total) = await _uow.Conversations.GetByUserIdAsync(userId, page, size);
-            return (items.Select(c => MapList(c, userId)).ToList(), total);
+            return await _uow.Conversations.GetProjectedListByUserIdAsync(userId, page, size);
         }
         catch (Exception ex)
         {
