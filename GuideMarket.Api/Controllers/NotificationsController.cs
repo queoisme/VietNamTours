@@ -16,11 +16,11 @@ public class NotificationsController : ControllerBase
         _notifications = notifications;
 
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int size = 20)
+    public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int size = 20, [FromQuery] bool? isRead = null)
     {
         var userId      = GetCurrentUserId();
         var clampedSize = Math.Clamp(size, 1, 100);
-        var (items, total) = await _notifications.GetByUserIdAsync(userId, page, clampedSize);
+        var (items, total) = await _notifications.GetByUserIdAsync(userId, page, clampedSize, isRead);
         return Ok(ApiResponse<List<NotificationDto>>.Ok(items, meta: new PaginationMeta
         {
             Page  = Math.Max(page, 1),

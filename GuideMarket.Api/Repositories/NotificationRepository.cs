@@ -22,10 +22,13 @@ public class NotificationRepository : INotificationRepository
     public void Update(Notification entity) => _db.Notifications.Update(entity);
     public void Delete(Notification entity) => _db.Notifications.Remove(entity);
 
-    public async Task<(List<Notification> Items, long Total)> GetByUserIdAsync(Guid userId, int page, int size)
+    public async Task<(List<Notification> Items, long Total)> GetByUserIdAsync(Guid userId, int page, int size, bool? isRead = null)
     {
         var query = _db.Notifications.AsNoTracking()
             .Where(n => n.UserId == userId);
+
+        if (isRead.HasValue)
+            query = query.Where(n => n.IsRead == isRead.Value);
 
         var total       = await query.LongCountAsync();
         var clampedSize = Math.Clamp(size, 1, 100);

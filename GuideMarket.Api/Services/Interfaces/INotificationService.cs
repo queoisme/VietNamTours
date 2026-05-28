@@ -20,7 +20,7 @@ public interface INotificationService
         string? entityType = null,
         Guid? entityId = null);
 
-    Task<(List<NotificationDto> Items, long Total)> GetByUserIdAsync(Guid userId, int page, int size);
+    Task<(List<NotificationDto> Items, long Total)> GetByUserIdAsync(Guid userId, int page, int size, bool? isRead = null);
     Task<int> GetUnreadCountAsync(Guid userId);
     Task MarkReadAsync(Guid userId, Guid notificationId);
     Task MarkAllReadAsync(Guid userId);

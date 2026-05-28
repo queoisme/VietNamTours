@@ -62,9 +62,9 @@ public class NotificationService : INotificationService
     }
 
     public async Task<(List<NotificationDto> Items, long Total)> GetByUserIdAsync(
-        Guid userId, int page, int size)
+        Guid userId, int page, int size, bool? isRead = null)
     {
-        var (items, total) = await _uow.Notifications.GetByUserIdAsync(userId, page, size);
+        var (items, total) = await _uow.Notifications.GetByUserIdAsync(userId, page, size, isRead);
         return (items.Select(Map).ToList(), total);
     }
 
