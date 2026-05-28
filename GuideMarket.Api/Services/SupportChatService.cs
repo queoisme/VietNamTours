@@ -10,8 +10,13 @@ namespace GuideMarket.Api.Services;
 public class SupportChatService : ISupportChatService
 {
     private readonly IUnitOfWork _uow;
+    private readonly INotificationService _notifications;
 
-    public SupportChatService(IUnitOfWork uow) => _uow = uow;
+    public SupportChatService(IUnitOfWork uow, INotificationService notifications)
+    {
+        _uow           = uow;
+        _notifications = notifications;
+    }
 
     public async Task<SupportTicketResponse> CreateTicketAsync(Guid userId, CreateSupportTicketRequest request)
     {
@@ -32,6 +37,14 @@ public class SupportChatService : ISupportChatService
 
         var created = await _uow.Support.GetConversationByIdAsync(conv.Id)
             ?? throw new KeyNotFoundException("Ticket not found after creation");
+
+        await _notifications.NotifyAdminsAsync(
+            "support_ticket_created",
+            "Ticket hỗ trợ mới",
+            $"{user.FullName} mở ticket: {request.Subject}",
+            "support",
+            conv.Id);
+
         return Map(created);
     }
 
@@ -115,6 +128,26 @@ public class SupportChatService : ISupportChatService
         var sender = await _uow.Users.GetByIdAsync(senderId)
             ?? throw new KeyNotFoundException("Sender not found");
         msg.Sender = sender;
+
+        if (isAdmin)
+        {
+            await _notifications.CreateAsync(
+                conv.UserId,
+                "support_reply",
+                "Admin đã trả lời ticket của bạn",
+                $"Ticket \"{conv.Subject}\": {msg.Content[..Math.Min(msg.Content.Length, 100)]}",
+                "support",
+                ticketId);
+        }
+        else
+        {
+            await _notifications.NotifyAdminsAsync(
+                "support_message",
+                "Tin nhắn mới trong ticket hỗ trợ",
+                $"{sender.FullName}: {msg.Content[..Math.Min(msg.Content.Length, 100)]}",
+                "support",
+                ticketId);
+        }
 
         return MapMessage(msg);
     }
