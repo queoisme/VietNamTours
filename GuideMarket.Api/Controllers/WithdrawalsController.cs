@@ -72,6 +72,14 @@ public class WithdrawalsController : ControllerBase
         return Ok(ApiResponse<AdminWithdrawalResponse>.Ok(result, "Withdrawal rejected"));
     }
 
+    [HttpPost("admin/withdrawals/{id:guid}/complete")]
+    public async Task<IActionResult> Complete(Guid id, [FromBody] ProcessWithdrawalRequest request)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _withdrawals.CompleteAsync(userId, id, request);
+        return Ok(ApiResponse<AdminWithdrawalResponse>.Ok(result, "Withdrawal completed"));
+    }
+
     private Guid GetCurrentUserId()
     {
         var sub = User.FindFirst("sub")?.Value

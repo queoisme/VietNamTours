@@ -51,6 +51,9 @@ public class WithdrawalService : IWithdrawalService
         if (request.Amount > profile.Balance)
             throw new InvalidOperationException("Insufficient balance");
 
+        if (await _uow.Withdrawals.HasPendingByGuideAsync(guideId))
+            throw new InvalidOperationException("Bạn đã có một yêu cầu rút tiền đang chờ xử lý.");
+
         if (!Enum.TryParse<WithdrawalMethod>(request.Method, true, out var method))
             throw new InvalidOperationException("Invalid withdrawal method");
 
@@ -78,6 +81,13 @@ public class WithdrawalService : IWithdrawalService
         await _uow.Withdrawals.AddAsync(withdrawal);
         await _uow.SaveChangesAsync();
 
+        await _notifications.NotifyAdminsAsync(
+            "withdrawal_requested",
+            "Yêu cầu rút tiền mới",
+            $"{user.FullName} yêu cầu rút {withdrawal.Amount:N0} VNĐ qua {withdrawal.Method}.",
+            "withdrawal",
+            withdrawal.Id);
+
         return Map(withdrawal);
     }
 
@@ -102,14 +112,6 @@ public class WithdrawalService : IWithdrawalService
         w.Status      = WithdrawalStatus.approved;
         w.AdminNote   = request.AdminNote;
         w.ProcessedAt = DateTimeOffset.UtcNow;
-
-        var profile = await _uow.GuideProfiles.GetByUserIdAsync(w.GuideId);
-        if (profile != null)
-        {
-            profile.TotalWithdrawn += w.Amount;
-            _uow.GuideProfiles.Update(profile);
-        }
-
         _uow.Withdrawals.Update(w);
         await _uow.SaveChangesAsync();
 
@@ -171,6 +173,49 @@ public class WithdrawalService : IWithdrawalService
               <p>Số tiền đã được <strong>hoàn lại vào số dư</strong> tài khoản của bạn.</p>
               {(string.IsNullOrWhiteSpace(w.AdminNote) ? "" : $"<p><strong>Lý do:</strong> {w.AdminNote}</p>")}
               <p style="color:#666;font-size:14px">Vui lòng liên hệ hỗ trợ nếu bạn có thắc mắc.</p>
+            </div>
+            """);
+
+        return MapAdmin(w);
+    }
+
+    public async Task<AdminWithdrawalResponse> CompleteAsync(Guid adminId, Guid withdrawalId, ProcessWithdrawalRequest request)
+    {
+        await RequireAdminAsync(adminId);
+
+        var w = await _uow.Withdrawals.GetByIdWithGuideAsync(withdrawalId)
+            ?? throw new KeyNotFoundException("Withdrawal not found");
+
+        if (w.Status != WithdrawalStatus.approved)
+            throw new InvalidOperationException("Withdrawal must be approved before completing");
+
+        w.Status      = WithdrawalStatus.completed;
+        w.AdminNote   = request.AdminNote ?? w.AdminNote;
+        w.ProcessedAt = DateTimeOffset.UtcNow;
+        _uow.Withdrawals.Update(w);
+
+        var profile = await _uow.GuideProfiles.GetByUserIdAsync(w.GuideId);
+        if (profile != null)
+        {
+            profile.TotalWithdrawn += w.Amount;
+            _uow.GuideProfiles.Update(profile);
+        }
+
+        await _uow.SaveChangesAsync();
+
+        await _notifications.CreateAsync(
+            w.GuideId,
+            "withdrawal_completed",
+            "Rút tiền hoàn tất",
+            $"Số tiền {w.NetAmount:N0} VNĐ đã được chuyển đến tài khoản của bạn.",
+            "withdrawal",
+            w.Id,
+            "Rút tiền hoàn tất - VietNamTours",
+            $"""
+            <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #e0e0e0;border-radius:8px">
+              <h2 style="color:#2e7d32">Rút tiền hoàn tất ✓</h2>
+              <p>Số tiền <strong>{w.NetAmount:N0} VNĐ</strong> đã được chuyển đến tài khoản của bạn.</p>
+              {(string.IsNullOrWhiteSpace(w.AdminNote) ? "" : $"<p style='color:#666'>Ghi chú: {w.AdminNote}</p>")}
             </div>
             """);
 

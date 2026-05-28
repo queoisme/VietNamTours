@@ -11,4 +11,5 @@ public interface IWithdrawalService
     Task<(List<AdminWithdrawalResponse> Items, long Total)> GetAllAsync(Guid adminId, string? status, int page, int size);
     Task<AdminWithdrawalResponse> ApproveAsync(Guid adminId, Guid withdrawalId, ProcessWithdrawalRequest request);
     Task<AdminWithdrawalResponse> RejectAsync(Guid adminId, Guid withdrawalId, ProcessWithdrawalRequest request);
+    Task<AdminWithdrawalResponse> CompleteAsync(Guid adminId, Guid withdrawalId, ProcessWithdrawalRequest request);
 }

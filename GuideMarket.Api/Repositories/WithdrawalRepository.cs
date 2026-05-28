@@ -24,6 +24,9 @@ public class WithdrawalRepository : IWithdrawalRepository
     public Task<Withdrawal?> GetByIdWithGuideAsync(Guid id) =>
         _db.Withdrawals.Include(w => w.Guide).FirstOrDefaultAsync(w => w.Id == id);
 
+    public Task<bool> HasPendingByGuideAsync(Guid guideId) =>
+        _db.Withdrawals.AnyAsync(w => w.GuideId == guideId && w.Status == WithdrawalStatus.pending);
+
     public async Task<(List<Withdrawal> Items, long Total)> GetByGuideIdAsync(Guid guideId, int page, int size)
     {
         var q = _db.Withdrawals.AsNoTracking()
