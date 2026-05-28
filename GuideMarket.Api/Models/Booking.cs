@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace GuideMarket.Api.Models;
 
 public enum BookingStatus { pending, confirmed, completed, cancelled, rejected }
-public enum PaymentStatus { unpaid, paid, refunded }
+public enum PaymentStatus { unpaid, paid, refunded, refund_failed }
 public enum CancellationBy { customer, guide, admin, system }
 
 [Table("bookings")]
@@ -73,6 +73,9 @@ public class Booking
 
     [Column("payment_paid_at")]
     public DateTimeOffset? PaymentPaidAt { get; set; }
+
+    [Column("vnpay_transaction_no")]
+    public string? VnpayTransactionNo { get; set; }
 
     [Column("confirmed_at")]
     public DateTimeOffset? ConfirmedAt { get; set; }

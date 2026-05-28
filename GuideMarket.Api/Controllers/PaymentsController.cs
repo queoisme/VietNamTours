@@ -143,6 +143,7 @@ public class PaymentsController : ControllerBase
 
         if (responseCode == "00")
         {
+            var transactionNo = Request.Query["vnp_TransactionNo"].ToString();
             try
             {
                 if (txnRef.StartsWith("bt"))
@@ -150,7 +151,7 @@ public class PaymentsController : ControllerBase
                 else if (txnRef.StartsWith("sb"))
                     await _subscriptionService.HandlePaymentSuccessAsync(txnRef, "vnpay");
                 else
-                    await _bookingService.HandlePaymentSuccessAsync(txnRef, "vnpay");
+                    await _bookingService.HandlePaymentSuccessAsync(txnRef, "vnpay", transactionNo);
             }
             catch (Exception ex)
             {
@@ -185,6 +186,7 @@ public class PaymentsController : ControllerBase
             return Ok(new { RspCode = "00", Message = "Confirm Success" });
         }
 
+        var ipnTransactionNo = Request.Query["vnp_TransactionNo"].ToString();
         try
         {
             if (txnRef.StartsWith("bt"))
@@ -192,7 +194,7 @@ public class PaymentsController : ControllerBase
             else if (txnRef.StartsWith("sb"))
                 await _subscriptionService.HandlePaymentSuccessAsync(txnRef, "vnpay");
             else
-                await _bookingService.HandlePaymentSuccessAsync(txnRef, "vnpay");
+                await _bookingService.HandlePaymentSuccessAsync(txnRef, "vnpay", ipnTransactionNo);
         }
         catch (Exception ex)
         {

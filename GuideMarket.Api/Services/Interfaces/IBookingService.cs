@@ -13,7 +13,8 @@ public interface IBookingService
     Task<BookingDetailResponse> RejectAsync(Guid guideId, Guid bookingId, RejectBookingRequest request);
     Task<BookingDetailResponse> CompleteAsync(Guid guideId, Guid bookingId);
     Task<BookingDetailResponse> CancelAsync(Guid requestingUserId, Guid bookingId, CancelBookingRequest request);
+    Task<BookingDetailResponse> GuideCancelAsync(Guid guideId, Guid bookingId, CancelBookingRequest request);
     Task<(List<BookingListItemResponse> Items, long Total)> GetGuideBookingsAsync(
         Guid guideId, string? status, int page, int size);
-    Task HandlePaymentSuccessAsync(string txnId, string paymentMethod = "momo");
+    Task HandlePaymentSuccessAsync(string txnId, string paymentMethod = "momo", string? vnpayTransactionNo = null);
 }

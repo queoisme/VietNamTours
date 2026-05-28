@@ -23,6 +23,13 @@ public class UserRepository : IUserRepository
     public async Task<bool> ExistsAsync(Guid id) =>
         await _db.Users.AnyAsync(u => u.Id == id && u.DeletedAt == null);
 
+    public async Task<List<Guid>> GetAdminIdsAsync() =>
+        await _db.Users
+            .AsNoTracking()
+            .Where(u => u.Role == UserRole.admin && u.DeletedAt == null)
+            .Select(u => u.Id)
+            .ToListAsync();
+
     public async Task AddAsync(User entity) => await _db.Users.AddAsync(entity);
 
     public void Update(User entity) => _db.Users.Update(entity);

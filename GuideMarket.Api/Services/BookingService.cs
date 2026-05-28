@@ -1,6 +1,7 @@
 using GuideMarket.Api.DTOs.Requests;
 using GuideMarket.Api.DTOs.Responses;
 using GuideMarket.Api.Exceptions;
+using GuideMarket.Api.Infrastructure;
 using GuideMarket.Api.Models;
 using GuideMarket.Api.Repositories;
 using GuideMarket.Api.Services.Interfaces;
@@ -12,12 +13,14 @@ public class BookingService : IBookingService
     private readonly IUnitOfWork _uow;
     private readonly ILogger<BookingService> _logger;
     private readonly INotificationService _notifications;
+    private readonly VnPayClient _vnpay;
 
-    public BookingService(IUnitOfWork uow, ILogger<BookingService> logger, INotificationService notifications)
+    public BookingService(IUnitOfWork uow, ILogger<BookingService> logger, INotificationService notifications, VnPayClient vnpay)
     {
         _uow           = uow;
         _logger        = logger;
         _notifications = notifications;
+        _vnpay         = vnpay;
     }
 
     public async Task<BookingDetailResponse> CreateAsync(Guid customerId, CreateBookingRequest request)
@@ -197,6 +200,7 @@ public class BookingService : IBookingService
             throw new InvalidOperationException("Booking cannot be rejected in its current state");
 
         booking.Status           = BookingStatus.rejected;
+        booking.CancellationBy   = Models.CancellationBy.guide;
         booking.RejectionReason  = request.Reason;
         booking.UpdatedAt        = DateTimeOffset.UtcNow;
 
@@ -222,6 +226,9 @@ public class BookingService : IBookingService
 
         _uow.Bookings.Update(booking);
         await _uow.SaveChangesAsync();
+
+        if (booking.RefundAmount > 0)
+            await TryExecuteVnpayRefundAsync(booking);
 
         var updated = await _uow.Bookings.GetByIdWithDetailsAsync(bookingId)
             ?? throw new InvalidOperationException("Failed to reload booking");
@@ -356,6 +363,9 @@ public class BookingService : IBookingService
         _uow.Bookings.Update(booking);
         await _uow.SaveChangesAsync();
 
+        if (refundAmount > 0)
+            await TryExecuteVnpayRefundAsync(booking);
+
         var updated = await _uow.Bookings.GetByIdWithDetailsAsync(bookingId)
             ?? throw new InvalidOperationException("Failed to reload booking");
 
@@ -386,7 +396,7 @@ public class BookingService : IBookingService
         return (bookings.Select(MapToListItem).ToList(), total);
     }
 
-    public async Task HandlePaymentSuccessAsync(string txnId, string paymentMethod = "momo")
+    public async Task HandlePaymentSuccessAsync(string txnId, string paymentMethod = "momo", string? vnpayTransactionNo = null)
     {
         var booking = await _uow.Bookings.GetByPaymentTxnIdAsync(txnId);
         if (booking is null)
@@ -409,6 +419,9 @@ public class BookingService : IBookingService
         booking.PaymentPaidAt = DateTimeOffset.UtcNow;
         booking.PaymentMethod = paymentMethod;
         booking.UpdatedAt     = DateTimeOffset.UtcNow;
+
+        if (!string.IsNullOrWhiteSpace(vnpayTransactionNo))
+            booking.VnpayTransactionNo = vnpayTransactionNo;
 
         var avail = await _uow.Tours.GetAvailabilityByDateAsync(booking.TourId, booking.TourDate);
         var paymentTour = await _uow.Tours.GetByIdAsync(booking.TourId);
@@ -454,6 +467,116 @@ public class BookingService : IBookingService
             avail.IsBlocked = false;
             avail.BlockedByBookingId = null;
             _uow.Tours.UpdateAvailability(avail);
+        }
+    }
+
+    public async Task<BookingDetailResponse> GuideCancelAsync(Guid guideId, Guid bookingId, CancelBookingRequest request)
+    {
+        var booking = await _uow.Bookings.GetByIdAsync(bookingId)
+            ?? throw new KeyNotFoundException("Booking not found");
+
+        if (booking.GuideId != guideId)
+            throw new ForbiddenAccessException();
+
+        if (booking.Status != BookingStatus.confirmed)
+            throw new InvalidOperationException("Booking cannot be cancelled in its current state");
+
+        decimal refundAmount = 0;
+        string? refundPolicy = null;
+
+        var guideCancelTour = await _uow.Tours.GetByIdAsync(booking.TourId);
+        var guideCancelIsPrivate = guideCancelTour?.TourType == TourType.@private;
+
+        if (booking.PaymentStatus == PaymentStatus.paid)
+        {
+            refundAmount = booking.TotalPrice;
+            refundPolicy = "100%";
+            await DecrementBookedSlotsAsync(booking.TourId, booking.TourDate, booking.NumPeople, guideCancelIsPrivate);
+        }
+        else if (guideCancelIsPrivate)
+        {
+            await DecrementBookedSlotsAsync(booking.TourId, booking.TourDate, booking.NumPeople, isPrivate: true);
+        }
+
+        if (guideCancelIsPrivate)
+            await UnblockConsecutiveDatesAsync(booking.Id);
+
+        booking.Status             = BookingStatus.cancelled;
+        booking.CancellationBy     = Models.CancellationBy.guide;
+        booking.CancellationReason = request.Reason;
+        booking.RefundAmount       = refundAmount;
+        booking.RefundPolicy       = refundPolicy;
+        booking.UpdatedAt          = DateTimeOffset.UtcNow;
+
+        if (refundAmount > 0)
+            booking.PaymentStatus = PaymentStatus.refunded;
+
+        _uow.Bookings.Update(booking);
+        await _uow.SaveChangesAsync();
+
+        if (refundAmount > 0)
+            await TryExecuteVnpayRefundAsync(booking);
+
+        var updated = await _uow.Bookings.GetByIdWithDetailsAsync(bookingId)
+            ?? throw new InvalidOperationException("Failed to reload booking");
+
+        var refundNote = refundAmount > 0 ? " Bạn sẽ được hoàn lại 100% số tiền đã thanh toán." : "";
+        await _notifications.CreateAsync(
+            updated.CustomerId, "booking_cancelled", "Booking của bạn đã bị guide huỷ",
+            $"Tour \"{updated.Tour.Title}\" ngày {updated.TourDate:dd/MM/yyyy} đã bị guide huỷ. Lý do: {request.Reason}.{refundNote}",
+            "booking", updated.Id,
+            "Booking bị guide huỷ - VietNamTours",
+            $"<p>Tour <strong>{updated.Tour.Title}</strong> ngày {updated.TourDate:dd/MM/yyyy} đã bị guide huỷ.</p><p>Lý do: {request.Reason}</p>{(refundAmount > 0 ? "<p>Bạn sẽ được hoàn lại <strong>100%</strong> số tiền đã thanh toán.</p>" : "")}");
+
+        return MapToDetail(updated);
+    }
+
+    private async Task TryExecuteVnpayRefundAsync(Booking booking)
+    {
+        if (booking.PaymentMethod != "vnpay")
+            return;
+        if (string.IsNullOrWhiteSpace(booking.VnpayTransactionNo))
+        {
+            _logger.LogWarning("VNPay refund skipped for booking {BookingId}: VnpayTransactionNo not stored", booking.Id);
+            return;
+        }
+        if (booking.PaymentPaidAt is null)
+            return;
+
+        var transactionDate = booking.PaymentPaidAt.Value.ToOffset(TimeSpan.FromHours(7)).ToString("yyyyMMddHHmmss");
+        var orderInfo       = $"Hoan tien booking {booking.Id}";
+        var (success, msg)  = await _vnpay.RefundAsync(
+            booking.PaymentTxnId!,
+            booking.VnpayTransactionNo,
+            booking.RefundAmount,
+            orderInfo,
+            transactionDate,
+            "system",
+            "127.0.0.1");
+
+        if (!success)
+        {
+            _logger.LogError("VNPay refund FAILED for booking {BookingId}: {Message}", booking.Id, msg);
+            booking.PaymentStatus = PaymentStatus.refund_failed;
+            _uow.Bookings.Update(booking);
+            await _uow.SaveChangesAsync();
+            await _notifications.NotifyAdminsAsync(
+                "refund_failed",
+                "Hoàn tiền VNPay thất bại",
+                $"Booking {booking.Id} · {booking.RefundAmount:N0} VND · {msg}",
+                "booking",
+                booking.Id);
+            await _notifications.CreateAsync(
+                booking.CustomerId,
+                "refund_failed",
+                "Hoàn tiền gặp sự cố",
+                $"Hệ thống chưa thể hoàn {booking.RefundAmount:N0} VND cho đơn #{booking.Id.ToString()[..8].ToUpper()}. Đội hỗ trợ sẽ xử lý thủ công trong 3–5 ngày làm việc.",
+                "booking",
+                booking.Id);
+        }
+        else
+        {
+            _logger.LogInformation("VNPay refund OK for booking {BookingId}", booking.Id);
         }
     }
 

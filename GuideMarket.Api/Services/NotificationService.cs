@@ -52,6 +52,15 @@ public class NotificationService : INotificationService
         }
     }
 
+    public async Task NotifyAdminsAsync(
+        string type, string title,
+        string? body = null, string? entityType = null, Guid? entityId = null)
+    {
+        var adminIds = await _uow.Users.GetAdminIdsAsync();
+        foreach (var adminId in adminIds)
+            await CreateAsync(adminId, type, title, body, entityType, entityId);
+    }
+
     public async Task<(List<NotificationDto> Items, long Total)> GetByUserIdAsync(
         Guid userId, int page, int size)
     {

@@ -13,6 +13,13 @@ public interface INotificationService
         string? emailSubject = null,
         string? emailBody = null);
 
+    Task NotifyAdminsAsync(
+        string type,
+        string title,
+        string? body = null,
+        string? entityType = null,
+        Guid? entityId = null);
+
     Task<(List<NotificationDto> Items, long Total)> GetByUserIdAsync(Guid userId, int page, int size);
     Task<int> GetUnreadCountAsync(Guid userId);
     Task MarkReadAsync(Guid userId, Guid notificationId);

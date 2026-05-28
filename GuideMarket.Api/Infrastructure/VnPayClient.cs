@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -11,6 +12,8 @@ public class VnPayClient
     private readonly string _paymentUrl;
     private readonly string _returnUrl;
     private readonly string _frontendBaseUrl;
+    private readonly string _refundUrl;
+    private readonly HttpClient _http = new();
 
     public VnPayClient(IConfiguration config)
     {
@@ -19,6 +22,7 @@ public class VnPayClient
         _paymentUrl      = config["VnPay:PaymentUrl"]!;
         _returnUrl       = config["VnPay:ReturnUrl"]!;
         _frontendBaseUrl = config["VnPay:FrontendBaseUrl"] ?? "http://localhost:5173";
+        _refundUrl       = config["VnPay:RefundUrl"] ?? "https://sandbox.vnpayment.vn/merchant_webapi/api/transaction";
     }
 
     /// <summary>
@@ -86,6 +90,67 @@ public class VnPayClient
 
     public string GetFrontendFailedUrl(string code) =>
         $"{_frontendBaseUrl.TrimEnd('/')}/payment/failed?code={code}";
+
+    /// <summary>
+    /// Gọi VNPay Refund API. Trả về (true, "OK") khi thành công, (false, message) khi thất bại.
+    /// vnpayTransactionNo = vnp_TransactionNo từ callback lúc thanh toán.
+    /// transactionDate = ngày thanh toán gốc, format yyyyMMddHHmmss UTC+7.
+    /// </summary>
+    public async Task<(bool Success, string Message)> RefundAsync(
+        string txnRef,
+        string vnpayTransactionNo,
+        decimal amount,
+        string orderInfo,
+        string transactionDate,
+        string createBy,
+        string clientIp,
+        bool isFullRefund = true)
+    {
+        var requestId       = Guid.NewGuid().ToString("N")[..20];
+        var createDate      = DateTime.UtcNow.AddHours(7).ToString("yyyyMMddHHmmss");
+        var transactionType = isFullRefund ? "02" : "03";
+        var amountStr       = ((long)(amount * 100)).ToString();
+        var ip              = string.IsNullOrWhiteSpace(clientIp) || clientIp == "::1" ? "127.0.0.1" : clientIp;
+
+        // VNPay refund API hash: pipe-separated, vnp_TmnCode appears at positions 4 and 13
+        var hashInput = string.Join("|",
+            requestId, "2.1.0", "refund", _tmnCode, transactionType,
+            txnRef, amountStr, orderInfo, transactionDate,
+            createBy, createDate, ip, _tmnCode);
+        var secureHash = HmacSha512(_hashSecret, hashInput);
+
+        var body = new
+        {
+            vnp_RequestId       = requestId,
+            vnp_Version         = "2.1.0",
+            vnp_Command         = "refund",
+            vnp_TmnCode         = _tmnCode,
+            vnp_TransactionType = transactionType,
+            vnp_TxnRef          = txnRef,
+            vnp_Amount          = amountStr,
+            vnp_OrderInfo       = orderInfo,
+            vnp_TransactionNo   = vnpayTransactionNo,
+            vnp_TransactionDate = transactionDate,
+            vnp_CreateBy        = createBy,
+            vnp_CreateDate      = createDate,
+            vnp_IpAddr          = ip,
+            vnp_SecureHash      = secureHash,
+        };
+
+        try
+        {
+            using var response = await _http.PostAsJsonAsync(_refundUrl, body);
+            var result = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
+            if (result is null) return (false, "Empty response from VNPay");
+            result.TryGetValue("vnp_ResponseCode", out var code);
+            result.TryGetValue("vnp_Message", out var msg);
+            return (code == "00", msg ?? "Unknown");
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+    }
 
     // --- Helpers ---
 

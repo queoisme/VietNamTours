@@ -84,6 +84,15 @@ public class BookingsController : ControllerBase
         return Ok(ApiResponse<BookingDetailResponse>.Ok(booking, "Booking cancelled"));
     }
 
+    [HttpPost("bookings/{id:guid}/guide-cancel")]
+    [Authorize]
+    public async Task<IActionResult> GuideCancel(Guid id, [FromBody] CancelBookingRequest request)
+    {
+        var userId  = GetCurrentUserId();
+        var booking = await _bookingService.GuideCancelAsync(userId, id, request);
+        return Ok(ApiResponse<BookingDetailResponse>.Ok(booking, "Booking cancelled by guide"));
+    }
+
     [HttpGet("guides/me/bookings")]
     [Authorize]
     public async Task<IActionResult> GetGuideBookings(
