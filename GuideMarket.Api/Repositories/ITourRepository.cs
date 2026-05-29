@@ -19,4 +19,11 @@ public interface ITourRepository : IRepository<Tour>
     Task AddAvailabilityAsync(TourAvailability availability);
     void UpdateAvailability(TourAvailability availability);
     void DeleteAvailability(TourAvailability availability);
+
+    /// <summary>
+    /// Atomically increments booked_slots by <paramref name="increment"/> only if
+    /// (booked_slots + increment) &lt;= max_slots and the date is not blocked.
+    /// Returns true if successful, false if no slots available.
+    /// </summary>
+    Task<bool> TryIncrementBookedSlotsAsync(Guid tourId, DateOnly date, short increment);
 }

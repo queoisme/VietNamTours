@@ -136,4 +136,16 @@ public class TourRepository : ITourRepository
 
     public void DeleteAvailability(TourAvailability availability) =>
         _db.TourAvailabilities.Remove(availability);
+
+    public async Task<bool> TryIncrementBookedSlotsAsync(Guid tourId, DateOnly date, short increment)
+    {
+        var rows = await _db.TourAvailabilities
+            .Where(a => a.TourId == tourId
+                     && a.AvailableDate == date
+                     && !a.IsBlocked
+                     && (a.BookedSlots + increment) <= a.MaxSlots)
+            .ExecuteUpdateAsync(s =>
+                s.SetProperty(a => a.BookedSlots, a => (short)(a.BookedSlots + increment)));
+        return rows > 0;
+    }
 }
