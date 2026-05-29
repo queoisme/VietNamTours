@@ -399,8 +399,32 @@ public class BookingService : IBookingService
         if (booking.Status == BookingStatus.cancelled)
         {
             _logger.LogWarning(
-                "Payment IPN: booking {BookingId} is already cancelled, ignoring late payment for txnId {TxnId}",
+                "Payment IPN: booking {BookingId} already cancelled — initiating refund for late payment {TxnId}",
                 booking.Id, txnId);
+
+            // Save payment info so TryExecuteVnpayRefundAsync can issue the refund
+            booking.PaymentMethod = paymentMethod;
+            booking.PaymentPaidAt = DateTimeOffset.UtcNow;
+            booking.PaymentStatus = PaymentStatus.refunded;
+            booking.RefundAmount  = booking.TotalPrice;
+            booking.RefundPolicy  = "100%";
+            booking.UpdatedAt     = DateTimeOffset.UtcNow;
+            if (!string.IsNullOrWhiteSpace(vnpayTransactionNo))
+                booking.VnpayTransactionNo = vnpayTransactionNo;
+
+            _uow.Bookings.Update(booking);
+            await _uow.SaveChangesAsync();
+
+            await TryExecuteVnpayRefundAsync(booking);
+
+            await _notifications.CreateAsync(
+                booking.CustomerId,
+                "booking_cancelled",
+                "Đặt tour đã huỷ — đang hoàn tiền",
+                $"Đơn đặt tour đã bị huỷ nhưng hệ thống đã nhận được thanh toán. Chúng tôi đang hoàn lại {booking.TotalPrice:N0} VNĐ cho bạn.",
+                "booking",
+                booking.Id);
+
             return;
         }
 

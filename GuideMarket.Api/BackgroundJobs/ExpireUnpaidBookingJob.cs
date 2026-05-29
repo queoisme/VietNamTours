@@ -35,6 +35,7 @@ public class ExpireUnpaidBookingJob
                 b.CustomerId,
                 b.TourId,
                 b.TourDate,
+                b.NumPeople,
                 TourType  = b.Tour.TourType,
                 TourTitle = b.Tour.Title,
             })
@@ -53,6 +54,7 @@ public class ExpireUnpaidBookingJob
 
         var privateBookings = expired.Where(b => b.TourType == TourType.@private).ToList();
 
+        // Unblock consecutive dates for private tours
         if (privateBookings.Count > 0)
         {
             var privateIds = privateBookings.Select(b => b.Id).ToList();
@@ -63,16 +65,19 @@ public class ExpireUnpaidBookingJob
                 .ExecuteUpdateAsync(s => s
                     .SetProperty(a => a.IsBlocked, false)
                     .SetProperty(a => a.BlockedByBookingId, (Guid?)null));
+        }
 
-            foreach (var b in privateBookings)
-            {
-                var date = b.TourDate;
-                await _db.TourAvailabilities
-                    .Where(a => a.TourId == b.TourId && a.AvailableDate == date)
-                    .ExecuteUpdateAsync(s => s
-                        .SetProperty(a => a.BookedSlots,
-                            a => a.BookedSlots > 0 ? (short)(a.BookedSlots - 1) : (short)0));
-            }
+        // Release booked_slots for ALL expired bookings (private: -1, group: -numPeople)
+        foreach (var b in expired)
+        {
+            var decrement = b.TourType == TourType.@private ? (short)1 : b.NumPeople;
+            await _db.TourAvailabilities
+                .Where(a => a.TourId == b.TourId && a.AvailableDate == b.TourDate)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(a => a.BookedSlots,
+                        a => a.BookedSlots >= decrement
+                            ? (short)(a.BookedSlots - decrement)
+                            : (short)0));
         }
 
         foreach (var b in expired)
