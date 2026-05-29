@@ -53,4 +53,15 @@ public class ReviewRepository : IReviewRepository
         var items = await q.Skip((page - 1) * size).Take(size).ToListAsync();
         return (items, total);
     }
+
+    public async Task<HashSet<Guid>> GetReviewedBookingIdsAsync(IEnumerable<Guid> bookingIds)
+    {
+        var ids = bookingIds.ToList();
+        if (ids.Count == 0) return [];
+        var reviewed = await _db.Reviews
+            .Where(r => ids.Contains(r.BookingId))
+            .Select(r => r.BookingId)
+            .ToListAsync();
+        return reviewed.ToHashSet();
+    }
 }

@@ -8,4 +8,5 @@ public interface IReviewRepository : IRepository<Review>
     Task<Review?> GetByIdWithDetailsAsync(Guid id);
     Task<(List<Review> Items, long Total)> GetByTourIdAsync(Guid tourId, int page, int size);
     Task<(List<Review> Items, long Total)> GetByCustomerIdAsync(Guid customerId, int page, int size);
+    Task<HashSet<Guid>> GetReviewedBookingIdsAsync(IEnumerable<Guid> bookingIds);
 }

@@ -117,7 +117,8 @@ public class BookingService : IBookingService
         Guid customerId, string? status, int page, int size)
     {
         var (bookings, total) = await _uow.Bookings.GetByCustomerIdAsync(customerId, status, page, size);
-        return (bookings.Select(MapToListItem).ToList(), total);
+        var reviewedIds = await _uow.Reviews.GetReviewedBookingIdsAsync(bookings.Select(b => b.Id));
+        return (bookings.Select(b => MapToListItem(b, reviewedIds.Contains(b.Id))).ToList(), total);
     }
 
     public async Task<BookingDetailResponse> GetByIdAsync(Guid requestingUserId, Guid bookingId)
@@ -382,7 +383,7 @@ public class BookingService : IBookingService
             throw new ForbiddenAccessException("Only guides can access this endpoint");
 
         var (bookings, total) = await _uow.Bookings.GetByGuideIdAsync(guideId, status, page, size);
-        return (bookings.Select(MapToListItem).ToList(), total);
+        return (bookings.Select(b => MapToListItem(b)).ToList(), total);
     }
 
     public async Task HandlePaymentSuccessAsync(string txnId, string paymentMethod = "momo", string? vnpayTransactionNo = null)
@@ -572,7 +573,7 @@ public class BookingService : IBookingService
         }
     }
 
-    private static BookingListItemResponse MapToListItem(Booking b) => new()
+    private static BookingListItemResponse MapToListItem(Booking b, bool hasReview = false) => new()
     {
         Id                = b.Id,
         TourId            = b.TourId,
@@ -585,6 +586,7 @@ public class BookingService : IBookingService
         Status            = b.Status.ToString(),
         PaymentStatus     = b.PaymentStatus.ToString(),
         CreatedAt         = b.CreatedAt,
+        HasReview         = hasReview,
     };
 
     private static BookingDetailResponse MapToDetail(Booking b) => new()

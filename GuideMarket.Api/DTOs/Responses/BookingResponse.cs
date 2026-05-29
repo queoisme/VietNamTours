@@ -13,6 +13,7 @@ public class BookingListItemResponse
     public string Status { get; set; } = default!;
     public string PaymentStatus { get; set; } = default!;
     public DateTimeOffset CreatedAt { get; set; }
+    public bool HasReview { get; set; }
 }
 
 public class BookingDetailResponse
