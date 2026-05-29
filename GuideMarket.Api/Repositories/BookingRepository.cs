@@ -78,4 +78,19 @@ public class BookingRepository : IBookingRepository
 
     public async Task AddConversationAsync(Conversation conversation) =>
         await _db.Conversations.AddAsync(conversation);
+
+    public async Task<int> CountActiveForTourDateAsync(
+        Guid tourId, DateOnly tourDate, Guid? excludeBookingId = null)
+    {
+        var query = _db.Bookings
+            .Where(b => b.TourId == tourId
+                     && b.TourDate == tourDate
+                     && b.Status != BookingStatus.cancelled
+                     && b.Status != BookingStatus.rejected);
+
+        if (excludeBookingId.HasValue)
+            query = query.Where(b => b.Id != excludeBookingId.Value);
+
+        return await query.CountAsync();
+    }
 }

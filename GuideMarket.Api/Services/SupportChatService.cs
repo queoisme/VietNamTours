@@ -1,3 +1,4 @@
+using System.Text.Json;
 using GuideMarket.Api.DTOs.Requests;
 using GuideMarket.Api.DTOs.Responses;
 using GuideMarket.Api.Exceptions;
@@ -90,12 +91,21 @@ public class SupportChatService : ISupportChatService
         if (conv.Status == "closed")
             throw new InvalidOperationException("Ticket is closed");
 
+        var attachmentsJson = request.Attachments?.Count > 0
+            ? JsonSerializer.Serialize(request.Attachments)
+            : "[]";
+
+        var preview = !string.IsNullOrWhiteSpace(request.Content)
+            ? (request.Content.Length > 200 ? request.Content[..200] : request.Content)
+            : "📎 Đã gửi tệp đính kèm";
+
         var msg = new SupportMessage
         {
             Id                    = Guid.NewGuid(),
             SupportConversationId = ticketId,
             SenderId              = senderId,
-            Content               = request.Content,
+            Content               = request.Content ?? string.Empty,
+            Attachments           = attachmentsJson,
             SentAt                = DateTimeOffset.UtcNow,
         };
 
@@ -107,9 +117,7 @@ public class SupportChatService : ISupportChatService
         _uow.Support.Update(trackingConv);
 
         trackingConv.LastMessageAt      = msg.SentAt;
-        trackingConv.LastMessagePreview = msg.Content.Length > 200
-            ? msg.Content[..200]
-            : msg.Content;
+        trackingConv.LastMessagePreview = preview;
 
         if (isAdmin)
         {
@@ -129,13 +137,17 @@ public class SupportChatService : ISupportChatService
             ?? throw new KeyNotFoundException("Sender not found");
         msg.Sender = sender;
 
+        var notifyPreview = !string.IsNullOrWhiteSpace(msg.Content)
+            ? msg.Content[..Math.Min(msg.Content.Length, 100)]
+            : "📎 Đã gửi tệp đính kèm";
+
         if (isAdmin)
         {
             await _notifications.CreateAsync(
                 conv.UserId,
                 "support_reply",
                 "Admin đã trả lời ticket của bạn",
-                $"Ticket \"{conv.Subject}\": {msg.Content[..Math.Min(msg.Content.Length, 100)]}",
+                $"Ticket \"{conv.Subject}\": {notifyPreview}",
                 "support",
                 ticketId);
         }
@@ -144,7 +156,7 @@ public class SupportChatService : ISupportChatService
             await _notifications.NotifyAdminsAsync(
                 "support_message",
                 "Tin nhắn mới trong ticket hỗ trợ",
-                $"{sender.FullName}: {msg.Content[..Math.Min(msg.Content.Length, 100)]}",
+                $"{sender.FullName}: {notifyPreview}",
                 "support",
                 ticketId);
         }
@@ -207,5 +219,6 @@ public class SupportChatService : ISupportChatService
         m.Id, m.SupportConversationId, m.SenderId,
         m.Sender?.FullName ?? string.Empty,
         m.Sender?.AvatarUrl,
-        m.Content, m.IsRead, m.SentAt);
+        m.Content, m.IsRead, m.SentAt,
+        JsonSerializer.Deserialize<List<MessageAttachmentDto>>(m.Attachments) ?? []);
 }

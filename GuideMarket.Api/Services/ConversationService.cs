@@ -1,3 +1,4 @@
+using System.Text.Json;
 using GuideMarket.Api.DTOs.Requests;
 using GuideMarket.Api.DTOs.Responses;
 using GuideMarket.Api.Exceptions;
@@ -77,12 +78,17 @@ public class ConversationService : IConversationService
         var sender = await _uow.Users.GetByIdAsync(userId)
             ?? throw new KeyNotFoundException("User not found");
 
+        var attachmentsJson = request.Attachments?.Count > 0
+            ? JsonSerializer.Serialize(request.Attachments)
+            : "[]";
+
         var message = new Message
         {
             Id             = Guid.NewGuid(),
             ConversationId = conversationId,
             SenderId       = userId,
-            Content        = request.Content,
+            Content        = request.Content ?? string.Empty,
+            Attachments    = attachmentsJson,
             IsRead         = false,
             SentAt         = DateTimeOffset.UtcNow,
         };
@@ -242,5 +248,6 @@ public class ConversationService : IConversationService
         m.Id, m.ConversationId, m.SenderId,
         m.Sender?.FullName ?? string.Empty,
         m.Sender?.AvatarUrl,
-        m.Content, m.IsRead, m.ReadAt, m.SentAt);
+        m.Content, m.IsRead, m.ReadAt, m.SentAt,
+        JsonSerializer.Deserialize<List<MessageAttachmentDto>>(m.Attachments) ?? []);
 }

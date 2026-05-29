@@ -17,7 +17,10 @@ public class SupportMessage
     public Guid SenderId { get; set; }
 
     [Column("content")]
-    public string Content { get; set; } = default!;
+    public string Content { get; set; } = string.Empty;
+
+    [Column("attachments", TypeName = "jsonb")]
+    public string Attachments { get; set; } = "[]";
 
     [Column("is_read")]
     public bool IsRead { get; set; }

@@ -36,6 +36,7 @@ public class ExpireUnpaidBookingJob
                 b.TourId,
                 b.TourDate,
                 b.NumPeople,
+                b.NumDays,
                 TourType  = b.Tour.TourType,
                 TourTitle = b.Tour.Title,
             })
@@ -54,7 +55,7 @@ public class ExpireUnpaidBookingJob
 
         var privateBookings = expired.Where(b => b.TourType == TourType.@private).ToList();
 
-        // Unblock consecutive dates for private tours
+        // Unblock consecutive dates for private tours (each blocked by specific booking ID)
         if (privateBookings.Count > 0)
         {
             var privateIds = privateBookings.Select(b => b.Id).ToList();
@@ -62,6 +63,34 @@ public class ExpireUnpaidBookingJob
             await _db.TourAvailabilities
                 .Where(a => a.BlockedByBookingId.HasValue
                          && privateIds.Contains(a.BlockedByBookingId.Value))
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(a => a.IsBlocked, false)
+                    .SetProperty(a => a.BlockedByBookingId, (Guid?)null));
+        }
+
+        // Unblock consecutive dates for multi-day group tours
+        // Only unblock when no other active bookings remain for that departure date
+        var groupMultiDayBookings = expired
+            .Where(b => b.TourType == TourType.group && b.NumDays > 1)
+            .ToList();
+
+        foreach (var b in groupMultiDayBookings)
+        {
+            var remaining = await _db.Bookings
+                .CountAsync(x => x.TourId == b.TourId
+                              && x.TourDate == b.TourDate
+                              && x.Status != BookingStatus.cancelled
+                              && x.Status != BookingStatus.rejected);
+
+            if (remaining > 0) continue;
+
+            var endDate = b.TourDate.AddDays(b.NumDays - 1);
+            await _db.TourAvailabilities
+                .Where(a => a.TourId == b.TourId
+                         && a.AvailableDate > b.TourDate
+                         && a.AvailableDate <= endDate
+                         && a.IsBlocked
+                         && a.BlockedByBookingId == Guid.Empty)
                 .ExecuteUpdateAsync(s => s
                     .SetProperty(a => a.IsBlocked, false)
                     .SetProperty(a => a.BlockedByBookingId, (Guid?)null));

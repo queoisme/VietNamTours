@@ -29,6 +29,9 @@ public class Booking
     [Column("num_people")]
     public short NumPeople { get; set; }
 
+    [Column("num_days")]
+    public short NumDays { get; set; } = 1;
+
     [Column("total_price")]
     public decimal TotalPrice { get; set; }
 

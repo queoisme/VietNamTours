@@ -47,6 +47,11 @@ public class BookingService : IBookingService
 
         var isPrivate = tour.TourType == TourType.@private;
 
+        // Group tours cannot be booked on or after the departure date (tour may have already started)
+        if (!isPrivate && request.TourDate <= DateOnly.FromDateTime(DateTime.UtcNow.Date))
+            throw new InvalidOperationException(
+                "Không thể đặt tour nhóm vào ngày khởi hành hoặc sau đó. Vui lòng đặt trước ngày khởi hành.");
+
         // Atomically reserve slots — eliminates race condition between concurrent booking requests
         var slotIncrement = isPrivate ? (short)1 : (short)request.NumPeople;
         var reserved = await _uow.Tours.TryIncrementBookedSlotsAsync(
@@ -57,8 +62,8 @@ public class BookingService : IBookingService
                     ? "This private tour date is already booked"
                     : "Not enough slots available for the selected date");
 
-        var numDays    = isPrivate ? (short)Math.Max(1, (int)Math.Ceiling((double)tour.DurationHours / 24.0)) : (short)1;
-        var totalPrice = tour.PricePerPerson * request.NumPeople * numDays;
+        var numDays    = (short)Math.Max(1, (int)Math.Ceiling((double)tour.DurationHours / 24.0));
+        var totalPrice = tour.PricePerPerson * request.NumPeople;
         var txnRef     = Guid.NewGuid().ToString("N")[..15];
 
         var booking = new Booking
@@ -69,6 +74,7 @@ public class BookingService : IBookingService
             GuideId       = tour.GuideId,
             TourDate      = request.TourDate,
             NumPeople     = request.NumPeople,
+            NumDays       = numDays,
             TotalPrice    = totalPrice,
             ContactName   = request.ContactName,
             ContactPhone  = request.ContactPhone,
@@ -83,8 +89,8 @@ public class BookingService : IBookingService
 
         await _uow.Bookings.AddAsync(booking);
 
-        // Auto-block consecutive dates for multi-day private tours (single batch query)
-        if (isPrivate && numDays > 1)
+        // Auto-block consecutive dates for multi-day tours (both private and group)
+        if (numDays > 1)
         {
             var endDate = request.TourDate.AddDays(numDays - 1);
             var subsequentAvails = await _uow.Tours.GetAvailabilitiesByDateRangeAsync(
@@ -93,7 +99,9 @@ public class BookingService : IBookingService
             foreach (var nextAvail in subsequentAvails.Where(a => !a.IsBlocked))
             {
                 nextAvail.IsBlocked = true;
-                nextAvail.BlockedByBookingId = booking.Id;
+                // Private: link to specific booking for precise unblocking
+                // Group:   Guid.Empty sentinel — distinguishes from guide manual blocks (null)
+                nextAvail.BlockedByBookingId = isPrivate ? booking.Id : Guid.Empty;
                 _uow.Tours.UpdateAvailability(nextAvail);
             }
         }
@@ -217,6 +225,8 @@ public class BookingService : IBookingService
 
         if (rejectIsPrivate)
             await UnblockConsecutiveDatesAsync(booking.Id);
+        else
+            await UnblockGroupConsecutiveDatesIfLastBookingAsync(booking.TourId, booking.TourDate, booking.NumDays, booking.Id);
 
         _uow.Bookings.Update(booking);
         await _uow.SaveChangesAsync();
@@ -339,6 +349,8 @@ public class BookingService : IBookingService
 
         if (cancelIsPrivate)
             await UnblockConsecutiveDatesAsync(booking.Id);
+        else
+            await UnblockGroupConsecutiveDatesIfLastBookingAsync(booking.TourId, booking.TourDate, booking.NumDays, booking.Id);
 
         booking.Status             = BookingStatus.cancelled;
         booking.CancellationBy     = isAdmin ? Models.CancellationBy.admin : Models.CancellationBy.customer;
@@ -465,6 +477,36 @@ public class BookingService : IBookingService
         }
     }
 
+    /// <summary>
+    /// Unblock consecutive dates for a group tour departure only when no active bookings remain.
+    /// Uses Guid.Empty sentinel to distinguish system blocks from guide manual blocks (null).
+    /// <paramref name="excludeBookingId"/> must be the ID of the booking being cancelled so it is
+    /// excluded from the count (its status has not yet been saved to DB at call time).
+    /// </summary>
+    private async Task UnblockGroupConsecutiveDatesIfLastBookingAsync(
+        Guid tourId, DateOnly tourDate, short numDays, Guid excludeBookingId)
+    {
+        if (numDays <= 1) return;
+
+        // Exclude the booking currently being cancelled — its status change is still in-memory,
+        // so the DB would still count it as active without this exclusion.
+        var remaining = await _uow.Bookings.CountActiveForTourDateAsync(tourId, tourDate, excludeBookingId);
+        if (remaining > 0) return;
+
+        var endDate = tourDate.AddDays(numDays - 1);
+        var blocked = await _uow.Tours.GetAvailabilitiesByDateRangeAsync(
+            tourId, tourDate.AddDays(1), endDate);
+
+        // Only unblock dates marked with Guid.Empty (group booking sentinel)
+        // Never touch null (guide manual blocks) or specific booking IDs (private tour blocks)
+        foreach (var avail in blocked.Where(a => a.IsBlocked && a.BlockedByBookingId == Guid.Empty))
+        {
+            avail.IsBlocked = false;
+            avail.BlockedByBookingId = null;
+            _uow.Tours.UpdateAvailability(avail);
+        }
+    }
+
     public async Task<BookingDetailResponse> GuideCancelAsync(Guid guideId, Guid bookingId, CancelBookingRequest request)
     {
         var booking = await _uow.Bookings.GetByIdAsync(bookingId)
@@ -493,6 +535,8 @@ public class BookingService : IBookingService
 
         if (guideCancelIsPrivate)
             await UnblockConsecutiveDatesAsync(booking.Id);
+        else
+            await UnblockGroupConsecutiveDatesIfLastBookingAsync(booking.TourId, booking.TourDate, booking.NumDays, booking.Id);
 
         booking.Status             = BookingStatus.cancelled;
         booking.CancellationBy     = Models.CancellationBy.guide;

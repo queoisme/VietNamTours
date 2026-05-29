@@ -14,6 +14,22 @@ public record ConversationListItemResponse(
     DateTimeOffset CreatedAt
 );
 
+/// <summary>Result returned by POST /uploads/chat-attachment.</summary>
+public record AttachmentUploadResult(
+    string Url,
+    string FileName,
+    long   FileSize,
+    string ContentType
+);
+
+/// <summary>Attachment metadata returned in message responses.</summary>
+public record MessageAttachmentDto(
+    string Url,
+    string FileName,
+    long   FileSize,
+    string ContentType
+);
+
 public record MessageResponse(
     Guid Id,
     Guid ConversationId,
@@ -23,5 +39,6 @@ public record MessageResponse(
     string Content,
     bool IsRead,
     DateTimeOffset? ReadAt,
-    DateTimeOffset SentAt
+    DateTimeOffset SentAt,
+    List<MessageAttachmentDto> Attachments
 );

@@ -1,5 +1,6 @@
 using GuideMarket.Api.DTOs.Requests;
 using GuideMarket.Api.DTOs.Responses;
+using AttachmentUploadResult = GuideMarket.Api.DTOs.Responses.AttachmentUploadResult;
 using GuideMarket.Api.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -77,6 +78,48 @@ public class UploadsController : ControllerBase
         }
 
         return Ok(ApiResponse<string[]>.Ok([.. paths], "Certificates uploaded"));
+    }
+
+    private static readonly string[] AllowedAttachmentTypes =
+    [
+        "image/jpeg", "image/png", "image/webp",
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ];
+
+    /// <summary>Upload file đính kèm cho chat/support (public bucket, tối đa 5 file, 10 MB/file).</summary>
+    [HttpPost("chat-attachment")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UploadChatAttachments([FromForm] List<IFormFile> files)
+    {
+        if (files is null || files.Count == 0)
+            return BadRequest(ApiResponse<object>.Fail("No files provided"));
+        if (files.Count > 5)
+            return BadRequest(ApiResponse<object>.Fail("Maximum 5 files allowed"));
+
+        foreach (var f in files)
+        {
+            if (f.Length > MaxDocSize)
+                return BadRequest(ApiResponse<object>.Fail($"File '{f.FileName}' exceeds 10 MB limit"));
+            if (!AllowedAttachmentTypes.Contains(f.ContentType))
+                return BadRequest(ApiResponse<object>.Fail(
+                    $"File '{f.FileName}': only images (JPEG/PNG/WebP), PDF, and Word documents are allowed"));
+        }
+
+        var userId  = GetCurrentUserId();
+        var results = new List<AttachmentUploadResult>();
+
+        foreach (var file in files)
+        {
+            var ext  = Path.GetExtension(file.FileName).ToLowerInvariant();
+            var path = $"{userId}/{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}_{Guid.NewGuid():N}{ext}";
+            using var stream = file.OpenReadStream();
+            var url = await _storage.UploadPublicAsync("chat-attachments", path, stream, file.ContentType);
+            results.Add(new AttachmentUploadResult(url, file.FileName, file.Length, file.ContentType));
+        }
+
+        return Ok(ApiResponse<List<AttachmentUploadResult>>.Ok(results, "Uploaded"));
     }
 
     private Guid GetCurrentUserId()

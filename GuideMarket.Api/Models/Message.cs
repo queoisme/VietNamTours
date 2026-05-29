@@ -9,7 +9,8 @@ public class Message
     [Key][Column("id")] public Guid Id { get; set; }
     [Column("conversation_id")] public Guid ConversationId { get; set; }
     [Column("sender_id")] public Guid SenderId { get; set; }
-    [Column("content")] public string Content { get; set; } = default!;
+    [Column("content")] public string Content { get; set; } = string.Empty;
+    [Column("attachments", TypeName = "jsonb")] public string Attachments { get; set; } = "[]";
     [Column("is_read")] public bool IsRead { get; set; }
     [Column("read_at")] public DateTimeOffset? ReadAt { get; set; }
     [Column("sent_at")] public DateTimeOffset SentAt { get; set; }

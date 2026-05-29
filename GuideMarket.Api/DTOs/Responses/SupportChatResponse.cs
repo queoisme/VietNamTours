@@ -21,4 +21,5 @@ public record SupportMessageResponse(
     string? SenderAvatarUrl,
     string Content,
     bool IsRead,
-    DateTimeOffset SentAt);
+    DateTimeOffset SentAt,
+    List<MessageAttachmentDto> Attachments);
