@@ -23,13 +23,13 @@ public class GuideApplicationsController : ControllerBase
         return StatusCode(201, ApiResponse<GuideApplicationResponse>.Ok(result, "Application submitted"));
     }
 
-    /// <summary>Customer xem danh sách đơn đã nộp.</summary>
+    /// <summary>Customer xem đơn gần nhất đã nộp (null nếu chưa nộp).</summary>
     [HttpGet("api/v1/guide-applications/my")]
     public async Task<IActionResult> GetMy()
     {
         var userId = GetCurrentUserId();
-        var result = await _appService.GetMyApplicationsAsync(userId);
-        return Ok(ApiResponse<List<GuideApplicationResponse>>.Ok(result));
+        var result = await _appService.GetMyLatestApplicationAsync(userId);
+        return Ok(ApiResponse<GuideApplicationResponse?>.Ok(result));
     }
 
     // --- Admin endpoints ---

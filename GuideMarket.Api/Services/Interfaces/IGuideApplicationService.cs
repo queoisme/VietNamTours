@@ -6,7 +6,7 @@ namespace GuideMarket.Api.Services.Interfaces;
 public interface IGuideApplicationService
 {
     Task<GuideApplicationResponse> SubmitAsync(Guid userId, CreateGuideApplicationRequest request);
-    Task<List<GuideApplicationResponse>> GetMyApplicationsAsync(Guid userId);
+    Task<GuideApplicationResponse?> GetMyLatestApplicationAsync(Guid userId);
     Task<(List<GuideApplicationResponse> Items, long Total)> GetAllAsync(Guid adminId, GuideApplicationListParams p);
     Task<GuideApplicationResponse?> GetByIdAsync(Guid adminId, Guid applicationId);
     Task<GuideApplicationResponse> ApproveAsync(Guid adminId, Guid applicationId);

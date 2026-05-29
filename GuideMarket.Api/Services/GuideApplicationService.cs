@@ -14,12 +14,18 @@ public class GuideApplicationService : IGuideApplicationService
     private readonly IUnitOfWork _uow;
     private readonly SupabaseAuthClient _supabase;
     private readonly INotificationService _notifications;
+    private readonly SupabaseStorageClient _storage;
 
-    public GuideApplicationService(IUnitOfWork uow, SupabaseAuthClient supabase, INotificationService notifications)
+    public GuideApplicationService(
+        IUnitOfWork uow,
+        SupabaseAuthClient supabase,
+        INotificationService notifications,
+        SupabaseStorageClient storage)
     {
         _uow           = uow;
         _supabase      = supabase;
         _notifications = notifications;
+        _storage       = storage;
     }
 
     public async Task<GuideApplicationResponse> SubmitAsync(Guid userId, CreateGuideApplicationRequest request)
@@ -56,12 +62,13 @@ public class GuideApplicationService : IGuideApplicationService
         return MapToResponse(application, user);
     }
 
-    public async Task<List<GuideApplicationResponse>> GetMyApplicationsAsync(Guid userId)
+    public async Task<GuideApplicationResponse?> GetMyLatestApplicationAsync(Guid userId)
     {
         var user = await _uow.Users.GetByIdAsync(userId)
             ?? throw new KeyNotFoundException("User not found");
         var apps = await _uow.GuideApplications.GetByUserIdAsync(userId);
-        return apps.Select(a => MapToResponse(a, user)).ToList();
+        // Already ordered DESC by CreatedAt — return latest or null
+        return apps.Count == 0 ? null : MapToResponse(apps[0], user);
     }
 
     public async Task<(List<GuideApplicationResponse> Items, long Total)> GetAllAsync(Guid adminId, GuideApplicationListParams p)
@@ -75,7 +82,31 @@ public class GuideApplicationService : IGuideApplicationService
     {
         await RequireAdminAsync(adminId);
         var app = await _uow.GuideApplications.GetByIdWithUsersAsync(applicationId);
-        return app is null ? null : MapToResponse(app, app.Applicant);
+        if (app is null) return null;
+
+        var response = MapToResponse(app, app.Applicant);
+
+        // Generate signed URL for private identity document (TTL 15 min)
+        if (!string.IsNullOrWhiteSpace(app.IdentityDocUrl)
+            && !app.IdentityDocUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var slashIdx = app.IdentityDocUrl.IndexOf('/');
+                if (slashIdx > 0)
+                {
+                    var bucket = app.IdentityDocUrl[..slashIdx];
+                    var path   = app.IdentityDocUrl[(slashIdx + 1)..];
+                    response.IdentityDocUrl = await _storage.CreateSignedUrlAsync(bucket, path);
+                }
+            }
+            catch
+            {
+                // Keep original path if signing fails — admin can investigate manually
+            }
+        }
+
+        return response;
     }
 
     public async Task<GuideApplicationResponse> ApproveAsync(Guid adminId, Guid applicationId)
