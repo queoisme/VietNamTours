@@ -26,6 +26,7 @@ public class AppDbContext : DbContext
     public DbSet<OtpVerification> OtpVerifications => Set<OtpVerification>();
     public DbSet<SupportConversation> SupportConversations => Set<SupportConversation>();
     public DbSet<SupportMessage> SupportMessages => Set<SupportMessage>();
+    public DbSet<HomeCategoryDisplay> HomeCategoryDisplays => Set<HomeCategoryDisplay>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -217,6 +218,20 @@ public class AppDbContext : DbContext
             e.ToTable("support_messages");
             e.HasOne(m => m.SupportConversation).WithMany().HasForeignKey(m => m.SupportConversationId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(m => m.Sender).WithMany().HasForeignKey(m => m.SenderId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<HomeCategoryDisplay>(e =>
+        {
+            e.ToTable("home_category_displays");
+            e.HasKey(c => c.Id);
+            e.Property(c => c.Id).HasColumnName("id").ValueGeneratedOnAdd();
+            e.Property(c => c.Name).HasColumnName("name").HasMaxLength(100);
+            e.Property(c => c.Description).HasColumnName("description");
+            e.Property(c => c.CategoryFilter).HasColumnName("category_filter");
+            e.Property(c => c.IsVisible).HasColumnName("is_visible");
+            e.Property(c => c.SortOrder).HasColumnName("sort_order");
+            e.Property(c => c.CreatedAt).HasColumnName("created_at");
+            e.Property(c => c.UpdatedAt).HasColumnName("updated_at");
         });
     }
 }

@@ -20,6 +20,7 @@ public class UnitOfWork : IUnitOfWork
     public IBoostPlanConfigRepository BoostPlanConfigs { get; }
     public IWithdrawalRepository Withdrawals { get; }
     public ISupportRepository Support { get; }
+    public IHomeCategoryDisplayRepository HomeCategoryDisplays { get; }
 
     public UnitOfWork(
         AppDbContext db,
@@ -37,7 +38,8 @@ public class UnitOfWork : IUnitOfWork
         ISubscriptionPlanConfigRepository subscriptionPlanConfigs,
         IBoostPlanConfigRepository boostPlanConfigs,
         IWithdrawalRepository withdrawals,
-        ISupportRepository support)
+        ISupportRepository support,
+        IHomeCategoryDisplayRepository homeCategoryDisplays)
     {
         _db = db;
         Users = users;
@@ -55,6 +57,7 @@ public class UnitOfWork : IUnitOfWork
         BoostPlanConfigs = boostPlanConfigs;
         Withdrawals = withdrawals;
         Support = support;
+        HomeCategoryDisplays = homeCategoryDisplays;
     }
 
     public Task<int> SaveChangesAsync() => _db.SaveChangesAsync();
