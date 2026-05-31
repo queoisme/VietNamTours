@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace GuideMarket.Api.Controllers;
 
 [ApiController]
-[Route("api/v1/analytics")]
+[Route("api/v1/track")]
 public class AnalyticsController : ControllerBase
 {
     private readonly IAnalyticsService _analytics;
@@ -14,7 +14,7 @@ public class AnalyticsController : ControllerBase
     public AnalyticsController(IAnalyticsService analytics)
         => _analytics = analytics;
 
-    [HttpPost("page-view")]
+    [HttpPost("pv")]
     [AllowAnonymous]
     public IActionResult TrackPageView([FromBody] TrackPageViewRequest req)
     {
