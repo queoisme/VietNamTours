@@ -9,9 +9,13 @@ namespace GuideMarket.Api.Services;
 public class AnalyticsService : IAnalyticsService
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<AnalyticsService> _logger;
 
-    public AnalyticsService(IServiceScopeFactory scopeFactory)
-        => _scopeFactory = scopeFactory;
+    public AnalyticsService(IServiceScopeFactory scopeFactory, ILogger<AnalyticsService> logger)
+    {
+        _scopeFactory = scopeFactory;
+        _logger = logger;
+    }
 
     public void TrackSearch(TourSearchParams p, int resultCount, Guid? userId)
         => _ = Task.Run(async () =>
@@ -34,7 +38,10 @@ public class AnalyticsService : IAnalyticsService
                 });
                 await db.SaveChangesAsync();
             }
-            catch { /* analytics must never affect main request */ }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[Analytics] TrackSearch failed");
+            }
         });
 
     public void TrackPageView(string path, Guid? userId)
@@ -53,6 +60,9 @@ public class AnalyticsService : IAnalyticsService
                 });
                 await db.SaveChangesAsync();
             }
-            catch { /* analytics must never affect main request */ }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[Analytics] TrackPageView failed for path={Path}", path);
+            }
         });
 }
