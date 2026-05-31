@@ -14,14 +14,16 @@ public class ToursController : ControllerBase
 {
     private readonly ITourService _tourService;
     private readonly SupabaseStorageClient _storage;
+    private readonly IAnalyticsService _analytics;
 
     private static readonly string[] AllowedImageTypes = ["image/jpeg", "image/png", "image/webp"];
     private const long MaxImageSize = 10 * 1024 * 1024; // 10 MB
 
-    public ToursController(ITourService tourService, SupabaseStorageClient storage)
+    public ToursController(ITourService tourService, SupabaseStorageClient storage, IAnalyticsService analytics)
     {
         _tourService = tourService;
         _storage = storage;
+        _analytics = analytics;
     }
 
     /// <summary>Tìm kiếm tour (public).</summary>
@@ -30,6 +32,11 @@ public class ToursController : ControllerBase
     {
         var (items, total) = await _tourService.SearchAsync(p);
         var size = Math.Clamp(p.Size, 1, 100);
+
+        var userId = User.FindFirst("sub")?.Value is { } s && Guid.TryParse(s, out var g)
+            ? g : (Guid?)null;
+        _analytics.TrackSearch(p, (int)total, userId);
+
         return Ok(ApiResponse<List<TourListItemResponse>>.Ok(items, meta: new PaginationMeta
         {
             Page = Math.Max(p.Page, 1),

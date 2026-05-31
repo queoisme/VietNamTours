@@ -27,6 +27,8 @@ public class AppDbContext : DbContext
     public DbSet<SupportConversation> SupportConversations => Set<SupportConversation>();
     public DbSet<SupportMessage> SupportMessages => Set<SupportMessage>();
     public DbSet<HomeCategoryDisplay> HomeCategoryDisplays => Set<HomeCategoryDisplay>();
+    public DbSet<SearchEvent> SearchEvents => Set<SearchEvent>();
+    public DbSet<PageView> PageViews => Set<PageView>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -219,6 +221,9 @@ public class AppDbContext : DbContext
             e.HasOne(m => m.SupportConversation).WithMany().HasForeignKey(m => m.SupportConversationId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(m => m.Sender).WithMany().HasForeignKey(m => m.SenderId).OnDelete(DeleteBehavior.Restrict);
         });
+
+        modelBuilder.Entity<SearchEvent>(e => e.ToTable("search_events"));
+        modelBuilder.Entity<PageView>(e => e.ToTable("page_views"));
 
         modelBuilder.Entity<HomeCategoryDisplay>(e =>
         {

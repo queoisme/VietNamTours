@@ -131,6 +131,7 @@ builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IWithdrawalService, WithdrawalService>();
 builder.Services.AddScoped<ISupportChatService, SupportChatService>();
 builder.Services.AddScoped<IHomeCategoryService, HomeCategoryService>();
+builder.Services.AddSingleton<IAnalyticsService, AnalyticsService>();
 
 // FluentValidation
 builder.Services.AddFluentValidationAutoValidation();
